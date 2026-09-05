@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Login | Eagle Eye</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --black: #0a0a0a; 
+            --orange: #F97316; 
+            --red: #DC2626;
+            --grad: linear-gradient(90deg, #F97316 0%, #DC2626 100%);
+            --input-bg: #1f1f1f;
+            --text-muted: #888;
+            color-scheme: dark;
+        }
+        * { scrollbar-width: thin; scrollbar-color: #F97316 #111; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: var(--grad); border-radius: 10px; }
+        
+        body { 
+            background: var(--black); 
+            display: flex; 
+            min-height: 100vh; 
+            font-family: 'Inter', sans-serif; 
+            color: white; 
+            overflow-x: hidden; 
+        }
+        
+        #loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(10, 10, 10, 0.9); z-index: 10000; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(249, 115, 22, 0.1); border-left-color: var(--orange); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .left { flex: 1; position: sticky; top: 0; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-direction: column; padding: 48px; }
+        .left-bg { position: absolute; inset: 0; background: url('https://images.unsplash.com/photo-1473968512647-3e447244af8f?auto=format&fit=crop&q=80') center/cover; opacity: 0.22; }
+        .left-overlay { position: absolute; inset: 0; background: radial-gradient(circle, transparent, var(--black) 90%); }
+        .left-content { position: relative; z-index: 2; text-align: center; padding: 40px; width: 100%; max-width: 500px; }
+        
+        .brand-badge { display: inline-flex; align-items: center; gap: 10px; background: rgba(40, 20, 10, 0.6); border: 1px solid rgba(249, 115, 22, 0.4); border-radius: 999px; padding: 8px 22px; font-size: 0.85rem; font-weight: 800; color: var(--orange); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 25px; }
+        .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }
+        .brand-big { font-size: 3rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; color: white; }
+        .grad-text { background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .left-tagline { color: rgba(255,255,255,0.6); font-size: 1.05rem; line-height: 1.6; margin: 0 auto; }
+
+        .right { width: 55vw; max-width: 650px; min-width: 400px; background: #0a0a0a; display: flex; align-items: center; justify-content: center; padding: 40px; border-left: 1px solid rgba(255,255,255,0.05); z-index: 5; }
+        .card { background: transparent; width: 100%; max-width: 480px; }
+        .card-header { margin-bottom: 35px; }
+        
+        .card-header h1 { font-weight: 900; font-size: 2.2rem; color: white; letter-spacing: -0.5px; margin-bottom: 8px; }
+        .sub { color: var(--text-muted); font-size: 0.95rem; font-weight: 500; }
+
+        .field { margin-bottom: 20px; }
+        label { display: block; font-weight: 700; font-size: 0.75rem; margin-bottom: 8px; color: #a1a1a1; text-transform: uppercase; letter-spacing: 0.8px; }
+        
+        input { width: 100%; padding: 16px 18px; border-radius: 12px; border: 1px solid #333; background: var(--input-bg); color: white; font-size: 1rem; font-family: 'Inter', sans-serif; outline: none; transition: all 0.2s; }
+        input::placeholder { color: #555; }
+        input:focus { border-color: var(--orange); background: #262626; box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1); }
+        
+        .pwd-wrapper { position: relative; display: flex; align-items: center; width: 100%; }
+        .pwd-wrapper input { padding-right: 48px; }
+        .pwd-toggle { position: absolute; right: 18px; color: var(--text-muted); cursor: pointer; transition: color 0.2s; font-size: 1rem; z-index: 2; padding: 4px; }
+        .pwd-toggle:hover { color: white; }
+
+        .forgot-link { color: var(--orange); text-decoration: none; font-size: 0.85rem; font-weight: 600; transition: color 0.2s; }
+        .forgot-link:hover { color: white; text-decoration: underline; }
+
+        .btn-signin { width: 100%; padding: 18px; border: none; border-radius: 12px; background: var(--grad); color: white; font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
+        .btn-signin:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(249,115,22,0.3); }
+        .btn-signin:active { transform: translateY(0); }
+        
+        .signup-row { text-align: center; margin-top: 32px; font-size: 0.95rem; color: var(--text-muted); }
+        .signup-row a { color: white; font-weight: 600; text-decoration: none; transition: color 0.2s; }
+        .signup-row a:hover { color: var(--orange); text-decoration: underline; }
+
+        .tos { margin-top: 30px; text-align: center; font-size: 0.75rem; color: #555; line-height: 1.6; }
+        .tos a { color: var(--text-muted); text-decoration: none; font-weight: 600; transition: color 0.2s; }
+        .tos a:hover { color: white; text-decoration: underline; }
+
+        #messageBox { margin-bottom: 20px; font-size: 0.85rem; color: var(--red); font-weight: 600; text-align: center; }
+
+        .modal { display: none; position: fixed; z-index: 1000; inset: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: #121212; width: 100%; max-width: 580px; border-radius: 24px; padding: 40px; position: relative; box-shadow: 0 25px 60px rgba(0,0,0,0.8); display: flex; flex-direction: column; max-height: 90vh; border: 1px solid rgba(255,255,255,0.1); }
+        .modal-text { margin: 20px 0; overflow-y: auto; padding-right: 15px; color: #ccc; line-height: 1.6; text-align: left; }
+        .close-modal { position: absolute; top: 20px; right: 24px; font-size: 28px; color: #888; cursor: pointer; transition: 0.2s; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+        .close-modal:hover { color: white; background: rgba(255,255,255,0.1); }
+        
+        @media (max-width: 1024px) { 
+            body { flex-direction: column; } 
+            .left { flex: none; width: 100%; height: auto; min-height: 380px; position: relative; padding: 60px 24px; } 
+            .right { width: 100%; max-width: 100%; min-width: 100%; border-left: none; padding: 48px 24px; border-top: 1px solid rgba(255,255,255,0.05); } 
+            .card { margin: 0 auto; max-width: 550px; } 
+        }
+
+        @media (max-width: 600px) {
+            .brand-big { font-size: 2.2rem; }
+            .card-header h1 { font-size: 1.8rem; }
+            .left { min-height: 320px; padding: 40px 20px; }
+            .right { padding: 32px 20px; }
+            .card { padding: 0; }
+            input { padding: 14px 16px; }
+            .modal-content { padding: 30px 24px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; font-weight: 500; color: #ccc;">Logging in...</p>
+    </div>
+
+    <section class="left">
+        <div class="left-bg"></div>
+        <div class="left-overlay"></div>
+        <div class="left-content">
+            <div class="brand-badge"><span class="badge-dot"></span> Search and Rescue</div>
+            <h1 class="brand-big">
+                <span class="white-text">Spot the unseen.</span><br>
+                <span class="grad-text">Save the stranded.</span>
+            </h1>
+            <p class="left-tagline">Advanced drone surveillance, mapping, and live GPS tracking integrated into a unified emergency response platform.</p>
+        </div>
+    </section>
+
+    <section class="right">
+        <div class="card">
+            <header class="card-header">
+                <h1>Welcome Back</h1>
+                <p class="sub">Access your account to continue</p>
+            </header>
+
+            <form id="loginForm">
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username" required>
+                </div>
+
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="pwd-wrapper">
+                        <input type="password" id="password" placeholder="••••••••" required>
+                        <i class="fa-solid fa-eye pwd-toggle" id="togglePassword" onclick="toggleVisibility('password', 'togglePassword')"></i>
+                    </div>
+                </div>
+
+                <div id="messageBox"></div>
+
+                <div style="text-align: right; margin-bottom: 25px;">
+                    <a href="forgot_password.html" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn-signin">Log In</button>
+            </form>
+
+            <div class="signup-row">
+                Don't have an account? <a href="signup.html">Create Account</a>
+            </div>
+
+            <p class="tos">
+                By signing in, you agree to our <br>
+                <a href="javascript:void(0)" onclick="openModal('tos')">Terms and Conditions</a> 
+                and 
+                <a href="javascript:void(0)" onclick="openModal('pp')">Privacy Policy</a>.
+            </p>
+        </div>
+    </section>
+
+    <div id="legalModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <div id="modalBody" class="modal-text"></div>
+            <button class="btn-signin" onclick="closeModal()" style="margin-top: 20px;">I Understand</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+    <script src="supabase-init.js"></script>
+    <script src="auth-helpers.js"></script>
+    <script src="audit-log.js"></script>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const messageBox = document.getElementById('messageBox');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        function toggleVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        usernameInput.addEventListener('input', () => messageBox.innerText = "");
+        passwordInput.addEventListener('input', () => messageBox.innerText = "");
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userVal = usernameInput.value.trim();
+            const passVal = passwordInput.value;
+            
+            messageBox.innerText = "";
+            if (!window.supabase) { 
+                messageBox.innerText = "System error: Database connection not active."; 
+                return; 
+            }
+
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                const { data, error } = await window.supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('username', userVal)
+                    .single();
+
+                if (error || !data) {
+                    messageBox.innerText = "Invalid credentials. Please try again.";
+                    return;
+                }
+
+                if (data.is_disabled === true) {
+                    messageBox.innerText = "This account has been disabled. Contact an administrator.";
+                    return;
+                }
+
+                const passwordMatch = await verifyPassword(passVal, data.password);
+                if (!passwordMatch) {
+                    messageBox.innerText = "Invalid credentials. Please try again.";
+                    await writeAuditLog('SELECT', data.id, null, { username: userVal }, 'Failed login attempt');
+                    return;
+                }
+
+                localStorage.setItem('userRole', data.role || 'user');
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userName', `${data.first_name} ${data.last_name}`);
+                localStorage.setItem('userId', data.id);
+
+                await writeAuditLog('SELECT', data.id, null, { username: userVal, role: data.role }, 'Successful login');
+
+                if (data.role === 'admin') {
+                    window.location.href = 'admin.html';
+                } else {
+                    window.location.href = 'home.html';
+                }
+
+            } catch (err) {
+                console.error("Login Error:", err);
+                messageBox.innerText = "Connection error. Please check your internet and try again.";
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        });
+
+        const legalData = {
+            tos: `
+                <h2 style="color: white; margin-bottom: 24px; font-weight: 800; font-size: 1.5rem;">Terms and Conditions</h2>
+                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 20px;">
+                    <li style="border-left: 2px solid var(--orange); padding-left: 16px;">
+                        <strong style="color: white; display: block; font-size: 0.95rem; margin-bottom: 6px;">1. Compliance and Guidelines</strong>
+                        <span style="font-size: 0.9rem; color: #a1a1a1; line-height: 1.6;">Users are responsible for following local aviation laws, licensing, and airspace restrictions when operating integrated hardware.</span>
+                    </li>
+                    <li style="border-left: 2px solid var(--orange); padding-left: 16px;">
+                        <strong style="color: white; display: block; font-size: 0.95rem; margin-bottom: 6px;">2. Appropriate Use</strong>
+                        <span style="font-size: 0.9rem; color: #a1a1a1; line-height: 1.6;">The platform is intended for emergency response and surveying. It cannot be used for unauthorized surveillance or interference with public safety operations.</span>
+                    </li>
+                    <li style="border-left: 2px solid var(--orange); padding-left: 16px;">
+                        <strong style="color: white; display: block; font-size: 0.95rem; margin-bottom: 6px;">3. Service Limitations</strong>
+                        <span style="font-size: 0.9rem; color: #a1a1a1; line-height: 1.6;">Eagle Eye serves as an assistive tool for teams. It does not replace professional rescue personnel or guarantee operational success.</span>
+                    </li>
+                </ul>
+            `,
+            pp: `
+                <h2 style="color: white; margin-bottom: 24px; font-weight: 800; font-size: 1.5rem;">Privacy Policy</h2>
+                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 20px;">
+                    <li style="border-left: 2px solid var(--orange); padding-left: 16px;">
+                        <strong style="color: white; display: block; font-size: 0.95rem; margin-bottom: 6px;">Data Collection</strong>
+                        <span style="font-size: 0.9rem; color: #a1a1a1; line-height: 1.6;">We collect necessary account information, application usage logs, and telemetry data when you actively use the platform.</span>
+                    </li>
+                    <li style="border-left: 2px solid var(--orange); padding-left: 16px;">
+                        <strong style="color: white; display: block; font-size: 0.95rem; margin-bottom: 6px;">Usage of Information</strong>
+                        <span style="font-size: 0.9rem; color: #a1a1a1; line-height: 1.6;">Your data is strictly utilized to provide mapping features, route communications, and improve systemic reliability.</span>
+                    </li>
+                    <li style="border-left: 2px solid var(--orange); padding-left: 16px;">
+                        <strong style="color: white; display: block; font-size: 0.95rem; margin-bottom: 6px;">Data Privacy</strong>
+                        <span style="font-size: 0.9rem; color: #a1a1a1; line-height: 1.6;">We do not sell your personal data. It is securely encrypted and only shared with necessary cloud infrastructure providers.</span>
+                    </li>
+                </ul>
+            `
+        };
+
+        const modal = document.getElementById("legalModal");
+        const modalBody = document.getElementById("modalBody");
+        
+        function openModal(type) { 
+            modalBody.innerHTML = legalData[type]; 
+            modal.style.display = "flex"; 
+        }
+        
+        function closeModal() { 
+            modal.style.display = "none"; 
+        }
+        
+        window.onclick = function(event) { 
+            if (event.target == modal) {
+                closeModal(); 
+            }
+        }
+    </script>
+</body>
+</html>

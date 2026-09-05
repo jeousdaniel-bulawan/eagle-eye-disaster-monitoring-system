@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | Eagle Eye</title>
+    
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --black: #0a0a0a; --orange: #F97316; --red: #DC2626;
+            --text-main: #ffffff; --text-dim: rgba(255, 255, 255, 0.6);
+            --grad: linear-gradient(90deg, #F97316 0%, #DC2626 100%);
+            --border: rgba(255, 255, 255, 0.08);
+            --glass: rgba(18, 18, 18, 0.6);
+        }
+        body { min-height: 100vh; font-family: 'Inter', sans-serif; background: var(--black); color: var(--text-main); overflow-x: hidden; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #F97316 0%, #DC2626 100%); border-radius: 10px; }
+
+        nav { 
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 0 44px; height: 80px; border-bottom: 1px solid var(--border); 
+            background: var(--black); z-index: 1000; position: relative;
+        }
+        .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; transition: opacity 0.2s; }
+        .brand-logo { height: 50px; filter: invert(1) contrast(200%); mix-blend-mode: screen; }
+
+        .nav-right { display: flex; align-items: center; gap: 32px; height: 100%; }
+        
+        .nav-user { position: relative; z-index: 9999; display: flex; align-items: center; }
+        .dots-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 10px; border-radius: 10px; transition: all 0.2s; }
+        
+        .dropdown-menu { 
+            position: absolute; top: calc(100% + 10px); right: 0; width: 180px; 
+            background: #121212; border: 1px solid var(--border); border-radius: 16px; 
+            padding: 8px; display: none; flex-direction: column; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6); backdrop-filter: blur(10px); 
+        }
+        .dropdown-menu.show { display: flex; }
+        .dropdown-menu a { padding: 12px 16px; text-decoration: none; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; border-radius: 8px; transition: all 0.2s; }
+        .dropdown-menu a:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+        .logout-link { color: var(--red) !important; }
+
+        .back-nav { position: absolute; top: 120px; left: 44px; z-index: 10; }
+        .btn-back { 
+            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); 
+            color: #fff; padding: 12px 28px; border-radius: 50px; 
+            text-decoration: none; font-weight: 800; font-size: 0.8rem; 
+            letter-spacing: 1px; transition: all 0.3s ease; backdrop-filter: blur(10px); 
+            display: inline-flex; align-items: center;
+        }
+        .btn-back:hover { background: var(--grad); transform: translateX(-5px); }
+
+        .hero { min-height: calc(100vh - 80px); position: relative; padding: 120px 44px 60px; overflow-y: auto; }
+        .hero-bg { position: fixed; inset: 0; background: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop') center/cover no-repeat; z-index: -1; filter: brightness(0.25); }
+        
+        .profile-card { max-width: 800px; margin: 0 auto; z-index: 2; position: relative; }
+        
+        .profile-header { display: flex; align-items: center; gap: 40px; margin-bottom: 40px; flex-wrap: wrap;}
+        
+        .profile-circle {
+            width: 140px; height: 140px; border-radius: 50%;
+            border: 2px solid var(--orange); position: relative; overflow: hidden; cursor: pointer;
+            box-shadow: 0 0 30px rgba(249, 115, 22, 0.2); flex-shrink: 0; background: #111;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .profile-circle:not(.camera-active):hover::after { 
+            content: '\f303'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+            position: absolute; inset: 0; background: rgba(0,0,0,0.7); 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 1.8rem; color: #fff; z-index: 3;
+        }
+        
+        .profile-circle.camera-active {
+            border-color: var(--red);
+            box-shadow: 0 0 30px rgba(220, 38, 38, 0.5);
+            animation: pulse-border 1.5s infinite alternate;
+        }
+        @keyframes pulse-border {
+            from { border-color: var(--orange); box-shadow: 0 0 15px rgba(249, 115, 22, 0.5); }
+            to { border-color: var(--red); box-shadow: 0 0 30px rgba(220, 38, 38, 0.9); }
+        }
+
+        #profilePic { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
+
+        /* === Avatar dropdown menu === */
+        .avatar-wrapper { position: relative; flex-shrink: 0; }
+
+        .avatar-dropdown-menu {
+            position: absolute; top: calc(100% + 12px); left: 0; min-width: 230px;
+            background: #121212; border: 1px solid var(--border); border-radius: 16px;
+            padding: 8px; display: none; flex-direction: column; gap: 2px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+            z-index: 50;
+        }
+        .avatar-dropdown-menu.show { display: flex; }
+        .avatar-dd-item {
+            display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+            text-decoration: none; color: var(--text-dim); font-size: 0.85rem; font-weight: 600;
+            border-radius: 10px; transition: all 0.2s; cursor: pointer; background: none;
+            border: none; width: 100%; text-align: left; font-family: 'Inter', sans-serif;
+        }
+        .avatar-dd-item i { width: 18px; text-align: center; font-size: 0.95rem; flex-shrink: 0; }
+        .avatar-dd-item:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+        .avatar-dd-item.danger { color: var(--red); }
+        .avatar-dd-item.danger:hover { background: rgba(220, 38, 38, 0.1); color: #ff6b6b; }
+        .avatar-dd-label {
+            padding: 10px 14px 4px; font-size: 0.65rem; font-weight: 800; letter-spacing: 1.5px;
+            text-transform: uppercase; color: rgba(255, 255, 255, 0.35);
+        }
+        .avatar-dd-divider { border: none; border-top: 1px solid var(--border); margin: 6px 4px; }
+
+        /* === Camera cancel button (overlay on avatar) === */
+        .cam-cancel-btn {
+            position: absolute; top: -6px; right: -6px; z-index: 6;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: #1a1a1a; border: 1px solid var(--border);
+            color: #fff; align-items: center; justify-content: center;
+            display: none; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .cam-cancel-btn:hover { background: var(--red); border-color: var(--red); }
+
+        /* === Profile picture preview modal === */
+        .pic-modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10002;
+            display: none; align-items: center; justify-content: center; padding: 24px;
+            backdrop-filter: blur(6px);
+        }
+        .pic-modal-overlay.show { display: flex; }
+        .pic-modal { position: relative; max-width: 90vw; max-height: 90vh; }
+        .pic-modal img {
+            display: block; max-width: 90vw; max-height: 85vh; border-radius: 16px;
+            border: 2px solid var(--orange); box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+            object-fit: contain; background: #111;
+        }
+        .pic-modal-close {
+            position: absolute; top: -16px; right: -16px; width: 36px; height: 36px;
+            border-radius: 50%; background: var(--grad); border: none; color: #fff;
+            font-size: 1rem; cursor: pointer; display: flex; align-items: center;
+            justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        @media (max-width: 480px) {
+            .avatar-dropdown-menu { min-width: 210px; left: -10px; }
+            .pic-modal-close { top: -14px; right: -14px; width: 32px; height: 32px; }
+        }
+        
+        #camera-feed { 
+            width: 100%; height: 100%; object-fit: cover; 
+            display: none; position: absolute; inset: 0; z-index: 2; 
+        }
+
+        .display-name { font-size: clamp(2.5rem, 5vw, 3.5rem); font-weight: 900; letter-spacing: -2px; margin-bottom: 5px;}
+        .grad-text { background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .btn-primary { padding: 12px 24px; border-radius: 8px; background: var(--grad); color: #fff; border: none; font-weight: 800; font-size: 0.8rem; letter-spacing: 0.5px; cursor: pointer; transition: 0.3s; text-transform: uppercase;}
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(220, 38, 38, 0.3); }
+        .btn-ghost { padding: 12px 24px; border-radius: 8px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); font-weight: 800; font-size: 0.8rem; letter-spacing: 0.5px; cursor: pointer; transition: 0.3s; text-transform: uppercase;}
+        .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+
+        .icon-btn {
+            width: 44px;
+            height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            padding: 0 !important; 
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .icon-btn i {
+            line-height: 1;
+        }
+
+        .info-section { background: var(--glass); border: 1px solid var(--border); border-radius: 24px; padding: 40px; backdrop-filter: blur(20px); }
+        .section-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 20px;}
+        .admin-title { font-size: 1.1rem; font-weight: 900; color: var(--text-main); letter-spacing: 1px; text-transform: uppercase;}
+        
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media(max-width: 600px) { .info-grid { grid-template-columns: 1fr; } }
+        
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 0.7rem; color: var(--orange); text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;}
+        
+        .form-input { 
+            background: transparent; border: 1px solid transparent; 
+            color: #fff; padding: 12px 0; border-radius: 8px; 
+            font-family: 'Inter', sans-serif; font-weight: 700; font-size: 1rem;
+            outline: none; transition: all 0.3s; width: 100%;
+        }
+
+        .name-edit-grid {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+        }
+        @media(max-width: 600px) { .name-edit-grid { grid-template-columns: 1fr; } }
+
+        .editing #readonlyNameWrapper { display: none !important; }
+        .editing #editableNameWrapper { display: block !important; }
+
+        .editing .form-input.editable-active { 
+            background: rgba(0,0,0,0.5); 
+            border-color: var(--border); 
+            padding: 12px 16px; 
+            font-weight: 500; 
+        }
+        .editing .form-input.editable-active:focus {
+            border-color: var(--orange);
+            background: #1f1f1f;
+        }
+
+        .form-input.invalid {
+            border-color: var(--red) !important;
+            background: rgba(220, 38, 38, 0.05) !important;
+        }
+        .error-hint { 
+            color: var(--red); 
+            font-size: 0.75rem; 
+            font-weight: 600; 
+            margin-top: 6px; 
+            display: none; 
+        }
+        
+        .save-controls { display: none; margin-top: 30px; gap: 12px; justify-content: flex-end; }
+        .editing .save-controls { display: flex; }
+        .editing .edit-btn { display: none; }
+
+        .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 900; background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid #15803d; letter-spacing: 1px; width: fit-content; margin-top: 5px;}
+
+        #notification { 
+            position: fixed; 
+            bottom: 24px; 
+            right: 24px; 
+            padding: 16px 24px; 
+            border-radius: 12px; 
+            background: #121212; 
+            border-left: 4px solid var(--orange); 
+            color: white; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
+            display: none; 
+            z-index: 10001; 
+            font-weight: 600; 
+            max-width: 320px; 
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.9rem;
+        }
+
+        #loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(10, 10, 10, 0.9); z-index: 10001; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(249, 115, 22, 0.1); border-left-color: var(--orange); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 1024px) {
+            .hero { padding: 120px 24px 60px; }
+            .back-nav { left: 24px; }
+        }
+
+        @media (max-width: 768px) {
+            .hero { padding: 120px 16px 60px; }
+            .back-nav { left: 16px; }
+        }
+    
+        .hamburger-btn {
+            display: none;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 8px 10px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+        }
+        .hamburger-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .hamburger-btn .bar {
+            width: 18px; height: 2px;
+            background: currentColor;
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+        .hamburger-btn.open .bar:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+        .hamburger-btn.open .bar:nth-child(2) { opacity: 0; }
+        .hamburger-btn.open .bar:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+        .mobile-nav-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 998;
+        }
+        .mobile-nav-overlay.show { display: block; }
+        .mobile-nav-panel {
+            position: fixed;
+            top: 0; right: -280px;
+            width: 260px; height: 100vh;
+            background: #0d0d0d;
+            border-left: 1px solid var(--border);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            padding: 72px 24px 32px;
+            gap: 4px;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+        }
+        .mobile-nav-panel.show { right: 0; }
+        .mobile-nav-panel a {
+            display: block;
+            padding: 14px 16px;
+            text-decoration: none;
+            color: var(--text-dim);
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-radius: 10px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .mobile-nav-panel a:hover, .mobile-nav-panel a.active-mobile {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+        }
+        .mobile-nav-panel .mobile-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+        .mobile-nav-panel .mobile-logout { color: var(--red) !important; }
+        @media (max-width: 768px) {
+            .hamburger-btn { display: inline-flex !important; }
+            .nav-links { display: none !important; }
+            .dots-btn { display: none !important; }
+            .nav-user .dropdown-menu { display: none !important; }
+            .nav-user { position: relative; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; font-weight: 600; color: #888;">Synchronizing profile records...</p>
+    </div>
+
+    <div id="notification"></div>
+
+    <div class="pic-modal-overlay" id="picModalOverlay">
+        <div class="pic-modal">
+            <button class="pic-modal-close" id="picModalClose" title="Close"><i class="fa-solid fa-xmark"></i></button>
+            <img id="picModalImg" src="" alt="Profile Picture Preview">
+        </div>
+    </div>
+
+    <nav>
+        <a href="home.html" id="logoLink" class="nav-logo">
+            <img src="logo.png" alt="Console Logo" class="brand-logo">
+        </a>
+        <div class="nav-right">
+            <div class="nav-user">
+                <button class="hamburger-btn" id="hamburgerBtn" onclick="openMobileNav()" aria-label="Open navigation">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
+            <button class="dots-btn" id="menuBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle>
+                    </svg>
+                </button>
+                <div class="dropdown-menu" id="dropdownMenu"></div>
+            </div>
+        </div>
+    
+<div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="closeMobileNav()"></div>
+<div class="mobile-nav-panel" id="mobileNavPanel">
+    <a href="home.html">Home</a>
+    <hr class="mobile-divider">
+    <a href="login.html" class="mobile-logout" onclick="localStorage.clear()">End Session</a>
+</div>
+</nav>
+
+    <div class="hero-bg"></div>
+    <div class="back-nav">
+        <a href="#" onclick="history.back(); return false;" class="btn-back">← RETURN</a>
+    </div>
+
+    <div class="hero">
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="avatar-wrapper" id="avatarWrapper">
+                    <div class="profile-circle" id="profileCircle" title="Profile Picture Options">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" id="profilePic" alt="Profile Picture">
+                        <video id="camera-feed" autoplay playsinline></video>
+                    </div>
+                    <button class="cam-cancel-btn" id="cancelCamBtn" title="Cancel Camera">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+
+                    <div class="avatar-dropdown-menu" id="avatarDropdown">
+                        <a href="#" id="viewPicBtn" class="avatar-dd-item">
+                            <i class="fa-solid fa-eye"></i><span>See Profile Picture</span>
+                        </a>
+                        <div class="avatar-dd-divider"></div>
+                        <div class="avatar-dd-label">Choose Profile Picture</div>
+                        <a href="#" id="uploadBtn" class="avatar-dd-item">
+                            <i class="fa-solid fa-upload"></i><span>Upload Photo</span>
+                        </a>
+                        <a href="#" id="camBtn" class="avatar-dd-item">
+                            <i class="fa-solid fa-camera"></i><span>Use Camera</span>
+                        </a>
+                        <div class="avatar-dd-divider"></div>
+                        <a href="#" id="deletePicBtn" class="avatar-dd-item danger">
+                            <i class="fa-solid fa-trash"></i><span>Remove Profile Picture</span>
+                        </a>
+                    </div>
+
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                </div>
+                <div>
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 5px; flex-wrap: wrap;">
+                        <p id="dispRole" style="color: var(--orange); font-weight: 800; font-size: 0.75rem; letter-spacing: 3px; text-transform: uppercase;">Loading...</p>
+                        <span style="color: rgba(255, 255, 255, 0.15); font-weight: 800; font-size: 0.75rem;">|</span>
+                        <p id="dispTag" style="color: var(--text-dim); font-weight: 800; font-size: 0.75rem; letter-spacing: 1.5px; text-transform: uppercase; font-family: monospace;">ID: Loading...</p>
+                    </div>
+                    <h1 class="display-name" id="dispName">User <span class="grad-text">Profile</span></h1>
+                </div>
+            </div>
+
+            <div class="info-section" id="profileForm">
+                <div class="section-top">
+                    <h2 class="admin-title">Profile Settings</h2>
+                    <button class="btn-ghost edit-btn" onclick="toggleEditMode()">Edit Profile</button>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="form-group" id="readonlyNameWrapper">
+                        <label>Full Name</label>
+                        <input type="text" id="inpName" class="form-input" placeholder="Loading..." readonly>
+                    </div>
+
+                    <div class="form-group" id="editableNameWrapper" style="display: none; grid-column: span 2;">
+                        <label>Full Name</label>
+                        <div class="name-edit-grid">
+                            <div>
+                                <input type="text" id="fname" class="form-input editable-active" placeholder="First *">
+                                <span class="error-hint" id="fname-err">First name is required.</span>
+                            </div>
+                            <div>
+                                <input type="text" id="mname" class="form-input editable-active" placeholder="Middle Name">
+                                <span class="error-hint" id="mname-err">Use N/A if none.</span>
+                            </div>
+                            <div>
+                                <input type="text" id="lname" class="form-input editable-active" placeholder="Last *">
+                                <span class="error-hint" id="lname-err">Last name is required.</span>
+                            </div>
+                            <div>
+                                <input type="text" id="suffix" class="form-input editable-active" placeholder="Suffix">
+                                <span class="error-hint" id="suffix-err">Use N/A if none.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Account Role</label>
+                        <input type="text" id="inpRole" class="form-input" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Number</label>
+                        <input type="text" id="inpContact" class="form-input" placeholder="N/A" readonly>
+                        <span class="error-hint" id="inpContact-err">Contact number must start with +63 and contain exactly 10 digits.</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="inpEmail" class="form-input" placeholder="N/A" readonly>
+                        <span class="error-hint" id="inpEmail-err">Please enter a valid email address containing an '@'.</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Account ID</label>
+                        <input type="text" id="inpTag" class="form-input" readonly>
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Username</label>
+                        <input type="text" id="inpUser" class="form-input" readonly>
+                    </div>
+                </div>
+
+                <div class="save-controls">
+                    <button class="btn-ghost" onclick="cancelEdit()">Discard</button>
+                    <button class="btn-primary" onclick="saveProfile()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-init.js"></script>
+    <script src="route-guard.js"></script>
+    <script src="audit-log.js"></script>
+
+    <script>
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const fileInput = document.getElementById('fileInput');
+        const profilePic = document.getElementById('profilePic');
+        const profileCircle = document.getElementById('profileCircle');
+        const avatarWrapper = document.getElementById('avatarWrapper');
+        const avatarDropdown = document.getElementById('avatarDropdown');
+        const viewPicBtn = document.getElementById('viewPicBtn');
+        const picModalOverlay = document.getElementById('picModalOverlay');
+        const picModalImg = document.getElementById('picModalImg');
+        const picModalClose = document.getElementById('picModalClose');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const camBtn = document.getElementById('camBtn');
+        const cancelCamBtn = document.getElementById('cancelCamBtn');
+        const video = document.getElementById('camera-feed');
+        const profileForm = document.getElementById('profileForm');
+
+        const inpName = document.getElementById('inpName');
+        const fnameInput = document.getElementById('fname');
+        const mnameInput = document.getElementById('mname');
+        const lnameInput = document.getElementById('lname');
+        const suffixInput = document.getElementById('suffix');
+
+        const inpRole = document.getElementById('inpRole');
+        const inpContact = document.getElementById('inpContact');
+        const inpEmail = document.getElementById('inpEmail');
+        const inpTag = document.getElementById('inpTag');
+        const inpUser = document.getElementById('inpUser');
+        const dispName = document.getElementById('dispName');
+        const dispRole = document.getElementById('dispRole');
+        const dispTag = document.getElementById('dispTag');
+
+        let currentRole = localStorage.getItem('userRole') || 'user';
+        let loggedInUserId = localStorage.getItem('userId'); 
+        let isCameraActive = false;
+
+        function showNotification(msg) {
+            const n = document.getElementById('notification');
+            n.innerText = msg;
+            n.style.display = 'block';
+            setTimeout(() => { n.style.display = 'none'; }, 5000);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!requireLogin(['user','operator','admin'])) return;
+            setupNavigation();
+            setupContactFormatter();
+            setupInputCleaners();
+            setupAvatarClickInteraction();
+            await fetchUserData();
+        });
+
+        function setupAvatarClickInteraction() {
+            // Clicking the avatar circle either opens the dropdown menu,
+            // or (if the camera is active) captures a photo.
+            profileCircle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (profileCircle.classList.contains('camera-active')) {
+                    capturePhoto();
+                } else {
+                    avatarDropdown.classList.toggle('show');
+                }
+            });
+
+            // "See Profile Picture" -> open preview modal
+            if (viewPicBtn) {
+                viewPicBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    avatarDropdown.classList.remove('show');
+                    picModalImg.src = profilePic.src;
+                    picModalOverlay.classList.add('show');
+                });
+            }
+
+            // "Upload Photo" -> trigger hidden file input
+            if (uploadBtn) {
+                uploadBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    avatarDropdown.classList.remove('show');
+                    fileInput.click();
+                });
+            }
+
+            // Close the picture preview modal
+            if (picModalClose) {
+                picModalClose.addEventListener('click', () => {
+                    picModalOverlay.classList.remove('show');
+                });
+            }
+            if (picModalOverlay) {
+                picModalOverlay.addEventListener('click', (e) => {
+                    if (e.target === picModalOverlay) {
+                        picModalOverlay.classList.remove('show');
+                    }
+                });
+            }
+
+            // Close the avatar dropdown when clicking anywhere outside it
+            document.addEventListener('click', (e) => {
+                if (avatarDropdown.classList.contains('show') && !avatarWrapper.contains(e.target)) {
+                    avatarDropdown.classList.remove('show');
+                }
+            });
+        }
+
+        function setupContactFormatter() {
+            inpContact.addEventListener('focus', function() {
+                if (profileForm.classList.contains('editing') && !this.value.startsWith('+63')) {
+                    this.value = '+63 ';
+                }
+            });
+
+            inpContact.addEventListener('input', function(e) {
+                if (!profileForm.classList.contains('editing')) return;
+                let val = e.target.value;
+
+                if (!val.startsWith('+63')) {
+                    val = '+63 ' + val.replace(/^\+?(63)?\s*/, '');
+                }
+
+                let body = val.substring(3);
+                let numericBody = body.replace(/\D/g, '');
+
+                if (numericBody.length > 10) {
+                    numericBody = numericBody.substring(0, 10);
+                }
+
+                e.target.value = '+63 ' + numericBody;
+            });
+        }
+
+        function setupInputCleaners() {
+            const fields = [
+                { input: fnameInput, errorId: 'fname-err' },
+                { input: mnameInput, errorId: 'mname-err' },
+                { input: lnameInput, errorId: 'lname-err' },
+                { input: suffixInput, errorId: 'suffix-err' },
+                { input: inpContact, errorId: 'inpContact-err' },
+                { input: inpEmail, errorId: 'inpEmail-err' }
+            ];
+
+            fields.forEach(f => {
+                f.input.addEventListener('input', () => {
+                    f.input.classList.remove('invalid');
+                    const errSpan = document.getElementById(f.errorId);
+                    if (errSpan) errSpan.style.display = 'none';
+                });
+            });
+        }
+
+        function formatContactForDisplay(rawNo) {
+            if (!rawNo || rawNo === 'N/A') return 'N/A';
+            const stripped = rawNo.replace(/\s+/g, '');
+            if (stripped.startsWith('+63') && stripped.length === 13) {
+                return `+63 ${stripped.substring(3)}`;
+            }
+            return rawNo;
+        }
+
+        function getOptimizedImage(src, callback) {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > height) {
+                    if (width > 300) {
+                        height = Math.round((height * 300) / width);
+                        width = 300;
+                    }
+                } else {
+                    if (height > 300) {
+                        width = Math.round((width * 300) / height);
+                        height = 300;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                const base64 = canvas.toDataURL('image/jpeg', 0.85);
+                
+                canvas.toBlob((blob) => {
+                    callback({ base64, blob });
+                }, 'image/jpeg', 0.85);
+            };
+            img.onerror = function() {
+                callback(null);
+            };
+            img.src = src;
+        }
+
+        async function fetchUserData() {
+            if (!loggedInUserId || !window.supabase) {
+                console.error("Session Missing: userId or supabase not found");
+                return;
+            }
+
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                const { data, error } = await window.supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('id', loggedInUserId)
+                    .single();
+
+                if (error) throw error;
+
+                if (data) {
+                    const fName = data.first_name || '';
+                    const mName = data.middle_name || 'N/A';
+                    const lName = data.last_name || '';
+                    const suffix = data.suffix || 'N/A';
+
+                    const cleanedMiddle = mName === 'N/A' ? '' : mName;
+                    const cleanedSuffix = suffix === 'N/A' ? '' : suffix;
+                    const compositeName = `${fName} ${cleanedMiddle} ${lName} ${cleanedSuffix}`.replace(/\s+/g, ' ').trim();
+                    
+                    inpName.value = compositeName || 'No Name Configured';
+                    
+                    fnameInput.value = fName;
+                    mnameInput.value = mName;
+                    lnameInput.value = lName;
+                    suffixInput.value = suffix;
+
+                    inpRole.value = (data.role || 'user').toUpperCase();
+                    inpContact.value = formatContactForDisplay(data.contact_no);
+                    inpEmail.value = data.email || 'N/A';
+                    inpTag.value = data.id;
+                    inpUser.value = data.username || 'N/A';
+
+                    updateHeaderDisplay(fName, lName, data.role || 'user', data.id || 'N/A');
+                    
+                    if (data.profile_pic) {
+                        profilePic.src = data.profile_pic;
+                        profilePic.dataset.base64 = data.profile_pic;
+                    } else {
+                        const fallBackUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.username || 'User'}`;
+                        profilePic.src = fallBackUrl;
+                        profilePic.dataset.base64 = fallBackUrl;
+                    }
+                }
+            } catch (err) {
+                console.error("Fetch Profile Error:", err);
+                showNotification("Failed to sync profile details.");
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+
+        function updateHeaderDisplay(first, last, role, tagId) {
+            dispRole.innerText = role.toUpperCase();
+            if (dispTag) {
+                dispTag.innerText = `ID: ${tagId}`;
+            }
+            if (first && last) {
+                dispName.innerHTML = `${first} <span class="grad-text">${last}</span>`;
+            } else {
+                dispName.innerHTML = `<span class="grad-text">${first || last || 'User'}</span>`;
+            }
+        }
+
+        function setupNavigation() {
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const logoLink = document.getElementById('logoLink');
+            const menuBtn = document.getElementById('menuBtn');
+
+            logoLink.href = currentRole === 'admin' ? "admin.html" : "home.html";
+
+            dropdownMenu.innerHTML = `
+                <a href="login.html" class="logout-link" onclick="localStorage.clear()">End Session</a>
+            `;
+
+            menuBtn.addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.classList.toggle('show'); });
+            document.addEventListener('click', () => dropdownMenu.classList.remove('show'));
+        }
+
+        function enterEditMode() {
+            profileForm.classList.add('editing');
+            inpContact.removeAttribute('readonly');
+            inpEmail.removeAttribute('readonly');
+            
+            inpContact.classList.add('editable-active');
+            inpEmail.classList.add('editable-active');
+        }
+
+        function toggleEditMode() {
+            enterEditMode();
+            fnameInput.focus();
+        }
+
+        function cancelEdit() {
+            profileForm.classList.remove('editing');
+            inpContact.setAttribute('readonly', 'true');
+            inpEmail.setAttribute('readonly', 'true');
+            
+            inpContact.classList.remove('editable-active');
+            inpEmail.classList.remove('editable-active');
+
+            window.pendingImageBlob = null;
+
+            const activeElements = [fnameInput, mnameInput, lnameInput, suffixInput, inpContact, inpEmail];
+            activeElements.forEach(el => el.classList.remove('invalid'));
+            
+            const activeErrors = ['fname-err', 'mname-err', 'lname-err', 'suffix-err', 'inpContact-err', 'inpEmail-err'];
+            activeErrors.forEach(id => {
+                const errSpan = document.getElementById(id);
+                if (errSpan) errSpan.style.display = 'none';
+            });
+
+            fetchUserData(); 
+        }
+
+        function flagValidationError(inputEl, errorId, message) {
+            inputEl.classList.add('invalid');
+            const errSpan = document.getElementById(errorId);
+            if (errSpan) {
+                errSpan.innerText = message;
+                errSpan.style.display = 'block';
+            }
+        }
+
+        async function uploadProfilePicture() {
+            if (!window.pendingImageBlob) {
+                return profilePic.src;
+            }
+
+            const fileName = `${loggedInUserId}_${Date.now()}.jpg`;
+
+            try {
+                const supabase = window.supabase;
+                const { data, error } = await supabase.storage
+                    .from('avatars')
+                    .upload(fileName, window.pendingImageBlob, {
+                        contentType: 'image/jpeg',
+                        cacheControl: '3600',
+                        upsert: true
+                    });
+
+                if (!error && data) {
+                    const { data: publicUrlData } = supabase.storage
+                        .from('avatars')
+                        .getPublicUrl(fileName);
+
+                    if (publicUrlData && publicUrlData.publicUrl) {
+                        return publicUrlData.publicUrl;
+                    }
+                }
+            } catch (storageErr) {
+                console.warn("Storage upload failed or avatars bucket unconfigured. Falling back to DB text storage...", storageErr);
+            }
+
+            return profilePic.dataset.base64 || profilePic.src;
+        }
+
+        async function saveProfile() {
+            if (!loggedInUserId) return;
+            
+            let integrityCheck = true;
+
+            if (!fnameInput.value.trim()) {
+                flagValidationError(fnameInput, 'fname-err', 'First name is required.');
+                integrityCheck = false;
+            }
+
+            if (!mnameInput.value.trim()) {
+                flagValidationError(mnameInput, 'mname-err', "Middle name cannot be blank. Enter 'N/A' if none.");
+                integrityCheck = false;
+            }
+
+            if (!lnameInput.value.trim()) {
+                flagValidationError(lnameInput, 'lname-err', 'Last name is required.');
+                integrityCheck = false;
+            }
+
+            if (!suffixInput.value.trim()) {
+                flagValidationError(suffixInput, 'suffix-err', "Suffix cannot be blank. Enter 'N/A' if none.");
+                integrityCheck = false;
+            }
+
+            const contactStripped = inpContact.value.replace(/\s+/g, '');
+            if (contactStripped.length !== 13 || !contactStripped.startsWith('+63')) {
+                flagValidationError(inpContact, 'inpContact-err', 'Requires +63 followed by exactly 10 digits.');
+                integrityCheck = false;
+            }
+
+            const emailVal = inpEmail.value.trim();
+            if (!emailVal || !emailVal.includes('@')) {
+                flagValidationError(inpEmail, 'inpEmail-err', "Please enter a valid email address containing an '@'.");
+                integrityCheck = false;
+            }
+
+            if (!integrityCheck) {
+                showNotification("Please correct the invalid fields before saving.");
+                return;
+            }
+
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                const finalProfilePicUrl = await uploadProfilePicture();
+
+                const { error } = await window.supabase
+                    .from('accounts')
+                    .update({
+                        first_name: fnameInput.value.trim(),
+                        middle_name: mnameInput.value.trim(),
+                        last_name: lnameInput.value.trim(),
+                        suffix: suffixInput.value.trim(),
+                        contact_no: contactStripped,
+                        email: emailVal,
+                        profile_pic: finalProfilePicUrl 
+                    })
+                    .eq('id', loggedInUserId);
+
+                if (error) throw error;
+                
+                window.pendingImageBlob = null;
+
+                profileForm.classList.remove('editing');
+                inpContact.setAttribute('readonly', 'true');
+                inpEmail.setAttribute('readonly', 'true');
+                inpContact.classList.remove('editable-active');
+                inpEmail.classList.remove('editable-active');
+
+                await writeAuditLog('UPDATE', loggedInUserId, null,
+                    { first_name: fnameInput.value.trim(), last_name: lnameInput.value.trim(), email: emailVal },
+                    'User updated own profile');
+                await fetchUserData();
+                showNotification('Profile updated successfully.');
+            } catch (err) {
+                console.error("Save Error:", err);
+                showNotification('Update failed: ' + (err.message || 'Check network database permissions.'));
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+
+        fileInput.onchange = e => {
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    getOptimizedImage(event.target.result, (res) => {
+                        if (res) {
+                            profilePic.src = res.base64;
+                            profilePic.dataset.base64 = res.base64;
+                            window.pendingImageBlob = res.blob; 
+                            enterEditMode(); 
+                        } else {
+                            showNotification("Failed to optimize profile pic. Re-upload or select another picture.");
+                        }
+                    });
+                    if (isCameraActive) {
+                        stopCameraStream();
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        function stopCameraStream() {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            video.style.display = 'none';
+            profileCircle.classList.remove('camera-active');
+            isCameraActive = false;
+            cancelCamBtn.style.display = 'none';
+        }
+
+        function capturePhoto() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 280; 
+            canvas.height = video.videoHeight || 280;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            const rawSnap = canvas.toDataURL('image/png');
+            getOptimizedImage(rawSnap, (res) => {
+                if (res) {
+                    profilePic.src = res.base64;
+                    profilePic.dataset.base64 = res.base64;
+                    window.pendingImageBlob = res.blob; 
+                    enterEditMode(); 
+                    stopCameraStream();
+                    showNotification("Profile image captured successfully.");
+                } else {
+                    showNotification("Failed to optimize captured picture.");
+                }
+            });
+        }
+
+        camBtn.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            avatarDropdown.classList.remove('show');
+
+            if (!isCameraActive) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { width: { ideal: 280 }, height: { ideal: 280 } } 
+                    });
+                    video.srcObject = stream; 
+                    video.style.display = 'block';
+                    profileCircle.classList.add('camera-active');
+                    isCameraActive = true;
+                    cancelCamBtn.style.display = 'flex';
+                    showNotification("Camera active. Tap your photo to capture.");
+                } catch (err) { 
+                    showNotification("Camera access denied or device unavailable."); 
+                }
+            } else {
+                capturePhoto();
+            }
+        };
+
+        cancelCamBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation(); 
+            stopCameraStream();
+            showNotification("Camera session closed.");
+        };
+
+        document.getElementById('deletePicBtn').onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            avatarDropdown.classList.remove('show');
+            if (!loggedInUserId) return;
+            const defaultUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${inpUser.value || 'User'}`;
+            profilePic.src = defaultUrl;
+            profilePic.dataset.base64 = defaultUrl;
+            window.pendingImageBlob = null;
+            try {
+                await window.supabase
+                    .from('accounts')
+                    .update({ profile_pic: null })
+                    .eq('id', loggedInUserId);
+                showNotification("Profile picture removed.");
+            } catch (err) {
+                showNotification("Failed to remove picture: " + err.message);
+            }
+        };
+    
+    function openMobileNav() {
+        document.getElementById('mobileNavOverlay').classList.add('show');
+        document.getElementById('mobileNavPanel').classList.add('show');
+        document.getElementById('hamburgerBtn').classList.add('open');
+    }
+    function closeMobileNav() {
+        document.getElementById('mobileNavOverlay').classList.remove('show');
+        document.getElementById('mobileNavPanel').classList.remove('show');
+        if (document.getElementById('hamburgerBtn')) {
+            document.getElementById('hamburgerBtn').classList.remove('open');
+        }
+    }
+</script>
+</body>
+</html>

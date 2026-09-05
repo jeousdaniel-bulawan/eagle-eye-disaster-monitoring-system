@@ -1,0 +1,20 @@
+{
+  "name": "eagle-eye-disaster-monitoring-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-stack disaster response monitoring system with automated incident ingestion.",
+  "type": "module",
+  "scripts": {
+    "scraper": "node scraper.js",
+    "mediator": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "crawlee": "^3.0.0",
+    "express": "^4.0.0",
+    "firebase-admin": "^13.0.0",
+    "mysql2": "^3.0.0",
+    "node-cron": "^4.0.0",
+    "playwright": "^1.0.0"
+  }
+}

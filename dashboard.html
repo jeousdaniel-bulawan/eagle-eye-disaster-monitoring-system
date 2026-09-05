@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Eagle Eye</title>
+    
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --black: #0a0a0a;
+            --orange: #F97316;
+            --red: #DC2626;
+            --text-main: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.4);
+            --border: rgba(255, 255, 255, 0.08);
+            --grad: linear-gradient(90deg, #F97316 0%, #DC2626 100%);
+            --neon-green: #4ade80;
+            --neon-blue: #3b82f6;
+            --neon-purple: #a855f7;
+        }
+
+        body {
+            height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background: var(--black);
+            color: var(--text-main);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav { 
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 0 44px; height: 80px; border-bottom: 1px solid var(--border); 
+            background: var(--black); z-index: 10000; flex-shrink: 0; 
+        }
+        
+        .nav-logo { display: flex; align-items: center; gap: 14px; text-decoration: none; transition: opacity 0.2s; }
+        .nav-logo:hover { opacity: 0.8; }
+        
+        .brand-logo { 
+            height: 64px; 
+            width: auto; 
+            object-fit: contain; 
+            filter: invert(1) contrast(200%); 
+            mix-blend-mode: screen; 
+        }
+
+        .nav-right { display: flex; align-items: center; gap: 32px; height: 100%; }
+        .nav-links { display: flex; gap: 32px; height: 100%; align-items: center; }
+        .nav-links a { 
+            position: relative; font-weight: 700; font-size: 0.85rem; color: var(--text-dim); 
+            text-decoration: none; text-transform: uppercase; letter-spacing: 0.05em;
+            height: 100%; display: flex; align-items: center; transition: all .2s ease;
+        }
+        .nav-links a:hover, .nav-links a.active { color: #fff; }
+        .nav-links a.active::after { 
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0; 
+            height: 2px; background: var(--grad); box-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
+        }
+
+        .dashboard-layout { flex: 1; padding: 12px; position: relative; }
+        .hero-frame { height: 100%; border-radius: 20px; overflow: hidden; position: relative; border: 1px solid var(--border); background: #000; }
+        #map { width: 100%; height: 100%; z-index: 1; filter: saturate(0.8) contrast(1.1); }
+
+        .hud { position: absolute; z-index: 1000; pointer-events: none; }
+        .hud > * { pointer-events: auto; }
+        .hud-top-left { top: 28px; left: 28px; display: flex; flex-direction: column; gap: 8px; }
+        .hud-bottom-left { bottom: 28px; left: 28px; display: flex; flex-direction: column; gap: 10px; }
+
+        #boundary-alert {
+            padding: 8px 14px; background: rgba(220, 38, 38, 0.9);
+            border: 1px solid #ff4d4d; border-radius: 8px; color: white;
+            font-weight: 800; font-size: 0.7rem; display: none; align-items: center; gap: 8px;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); backdrop-filter: blur(4px);
+        }
+
+        .glass-card { background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; }
+        .map-ctrl-btn { background: rgba(10, 10, 10, 0.85); border: 1px solid var(--border); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .map-ctrl-btn:hover { background: var(--orange); }
+
+        .stats-row { display: flex; gap: 20px; }
+        .stat-group { display: flex; flex-direction: column; }
+        .s-label { font-size: 0.6rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
+        .s-value { font-size: 0.85rem; font-weight: 900; }
+        .text-orange { color: var(--orange); }
+        .text-green { color: var(--neon-green); }
+
+        .incident-card { width: 320px; padding: 0; }
+        .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .card-header h2 { font-size: 0.7rem; font-weight: 900; color: var(--orange); text-transform: uppercase; }
+        .live-pulse { width: 6px; height: 6px; background: var(--red); border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        #incident-feed { max-height: 200px; overflow-y: auto; padding: 4px 0; }
+        .incident-item { padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background 0.2s; }
+        .incident-item:hover { background: rgba(255,255,255,0.03); }
+
+        .legend-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; padding: 10px 16px; width: 320px; }
+        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
+        .l-box { width: 10px; height: 10px; border-radius: 2px; }
+        .bg-pq { border: 2px solid rgba(255,255,255,0.6); background: transparent; } 
+        .bg-bf { border: 2px solid var(--orange); background: transparent; }
+        .bg-sa { border: 2px solid #3b82f6; background: transparent; }
+        .bg-restricted { background: var(--red); opacity: 0.6; }
+        .bg-incident { background: var(--orange); border-radius: 50%; }
+        .bg-drone { background: var(--neon-green); border-radius: 50%; }
+        .bg-user { background: var(--neon-purple); border-radius: 50%; }
+
+        .leaflet-popup-content-wrapper { background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 12px; color: white; padding: 0; }
+        .leaflet-popup-tip { background: rgba(15, 15, 15, 0.95); border: 1px solid var(--border); }
+        .leaflet-popup-content { margin: 12px; }
+
+        .tactical-popup { width: 280px; pointer-events: auto; }
+        .pop-title { font-weight: 900; font-size: 1.1rem; color: var(--orange); }
+        .pop-meta { font-size: 0.7rem; color: #fff; border-left: 2px solid var(--orange); padding-left: 8px; margin-bottom: 8px; font-family: monospace; }
+        .pop-details { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 0.7rem; max-height: 90px; overflow-y: auto; }
+        
+        .pop-video-container { height: 130px; background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border); position: relative; transition: border-color 0.2s; }
+        .pop-video-container.has-link { cursor: pointer; }
+        .pop-video-container.has-link:hover { border-color: var(--orange); }
+        .pop-video-feed { width: 100%; height: 100%; object-fit: cover; }
+        .video-overlay-hint { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7); padding: 4px 8px; border-radius: 4px; font-size: 0.55rem; font-weight: 800; color: var(--orange); letter-spacing: 0.05em; display: none; z-index: 10; }
+        .pop-video-container.has-link:hover .video-overlay-hint { display: block; }
+        
+        .no-footage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.7rem; font-weight: 700; text-align: center; padding: 10px; }
+        
+        .popup-actions { display: flex; flex-direction: column; gap: 6px; }
+        .mission-btn { width: 100%; padding: 10px; background: var(--grad); border: none; border-radius: 8px; color: white; font-weight: 900; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s;}
+        .mission-btn:hover { opacity: 0.9; }
+        .source-btn { width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: #fff; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
+        .source-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+
+        .nav-user { position: relative; display: flex; align-items: center; z-index: 99998; isolation: isolate; }
+        .dots-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 10px; border-radius: 10px; transition: all 0.2s; }
+        .dots-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+        .dropdown-menu {
+            position: absolute; top: calc(100% + 10px); right: 0;
+            width: 180px; background: #121212; border: 1px solid var(--border);
+            border-radius: 16px; padding: 8px; display: none;
+            flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px); z-index: 99999;
+        }
+        .dropdown-menu.show { display: flex; animation: dropIn 0.2s ease-out; }
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .dropdown-menu a {
+            padding: 12px 16px; text-decoration: none; color: var(--text-dim);
+            font-size: 0.85rem; font-weight: 600; border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .dropdown-menu a:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+        .dropdown-divider { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+        .logout-link { color: var(--red) !important; }
+
+        .hamburger-btn {
+            display: none;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 8px 10px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+        }
+        .hamburger-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .hamburger-btn .bar {
+            width: 18px; height: 2px;
+            background: currentColor;
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+        .hamburger-btn.open .bar:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+        .hamburger-btn.open .bar:nth-child(2) { opacity: 0; }
+        .hamburger-btn.open .bar:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+        .mobile-nav-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 99997;
+        }
+        .mobile-nav-overlay.show { display: block; }
+        .mobile-nav-panel {
+            position: fixed;
+            top: 0; right: -280px;
+            width: 260px; height: 100vh;
+            background: #0d0d0d;
+            border-left: 1px solid var(--border);
+            z-index: 99998;
+            display: flex;
+            flex-direction: column;
+            padding: 72px 24px 32px;
+            gap: 4px;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+        }
+        .mobile-nav-panel.show { right: 0; }
+        .mobile-nav-panel a {
+            display: block;
+            padding: 14px 16px;
+            text-decoration: none;
+            color: var(--text-dim);
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-radius: 10px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .mobile-nav-panel a:hover, .mobile-nav-panel a.active-mobile {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+        }
+        .mobile-nav-panel .mobile-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+        .mobile-nav-panel .mobile-logout { color: var(--red) !important; }
+        .mobile-nav-close {
+            position: absolute;
+            top: 20px; right: 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            cursor: pointer;
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .mobile-nav-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+        @media (max-width: 768px) {
+            .hamburger-btn { display: inline-flex !important; }
+            .nav-links { display: none !important; }
+            .dots-btn { display: none !important; }
+            .nav-user .dropdown-menu { display: none !important; }
+        }
+
+        .drone-marker-pulse {
+            width: 16px;
+            height: 16px;
+            background: var(--neon-green);
+            border: 2px solid rgba(255,255,255,0.85);
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.8);
+        }
+        .drone-marker-pulse::after {
+            content: '';
+            position: absolute;
+            top: -8px; left: -8px; right: -8px; bottom: -8px;
+            border: 2px solid var(--neon-green);
+            border-radius: 50%;
+            animation: drone-pulse 2s infinite;
+            opacity: 0;
+        }
+        @keyframes drone-pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        .operator-marker-pulse {
+            width: 14px;
+            height: 14px;
+            background: var(--neon-purple);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 0 8px rgba(168, 85, 247, 0.8);
+        }
+        .operator-marker-pulse::after {
+            content: '';
+            position: absolute;
+            top: -6px; left: -6px; right: -6px; bottom: -6px;
+            border: 2px solid var(--neon-purple);
+            border-radius: 50%;
+            animation: operator-pulse 2s infinite;
+            opacity: 0;
+        }
+        @keyframes operator-pulse {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+
+        .user-marker-pulse {
+            width: 14px;
+            height: 14px;
+            background: var(--neon-purple);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 0 8px rgba(168, 85, 247, 0.8);
+        }
+        .user-marker-pulse::after {
+            content: '';
+            position: absolute;
+            top: -6px; left: -6px; right: -6px; bottom: -6px;
+            border: 2px solid var(--neon-purple);
+            border-radius: 50%;
+            animation: user-pulse 2s infinite;
+            opacity: 0;
+        }
+        @keyframes user-pulse {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+
+        .toast-notification {
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(12px);
+            border-left: 4px solid var(--orange);
+            border-top: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.7);
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: auto;
+            min-width: 260px;
+        }
+        .toast-notification.show {
+            transform: translateX(0);
+        }
+        .toast-notification.error {
+            border-left-color: var(--red);
+        }
+        .toast-notification.success {
+            border-left-color: var(--neon-green);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--orange) 0%, var(--red) 100%); border-radius: 10px; }
+
+        #mobile-hud-bar { display: none; }
+        #mobile-map-controls { display: none; }
+
+        @media (max-width: 768px) {
+            body { overflow: hidden; }
+
+            nav {
+                padding: 0 16px;
+                height: 64px;
+                min-height: 64px;
+                overflow: visible;
+            }
+
+            .nav-logo { flex-shrink: 0; }
+
+            .brand-logo { height: 44px; }
+
+            .dashboard-layout {
+                padding: 6px;
+                display: flex;
+                flex-direction: column;
+                height: calc(100vh - 64px);
+                overflow: hidden;
+            }
+
+            .hero-frame {
+                flex: 0 0 auto;
+                height: 52vh;
+                border-radius: 12px;
+                position: relative;
+            }
+
+            #mobile-map-controls {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 6px;
+                position: absolute;
+                bottom: 16px;
+                left: 16px;
+                z-index: 2000;
+            }
+
+            #mobile-map-controls .map-ctrl-btn {
+                width: 40px;
+                height: 40px;
+                border-radius: 8px;
+            }
+
+            .hud-top-left,
+            .hud-bottom-left,
+            .hud-right-desktop { display: none !important; }
+
+            #toast-container {
+                position: fixed !important;
+                top: 72px !important;
+                right: 8px !important;
+                left: 8px !important;
+                z-index: 5000;
+            }
+
+            #mobile-hud-bar {
+                display: flex;
+                flex-direction: column;
+                flex: 1 1 auto;
+                overflow-y: auto;
+                overflow-x: hidden;
+                gap: 6px;
+                padding: 6px 4px 8px;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #mobile-hud-row-mid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+                align-items: stretch;
+            }
+
+            #mobile-hud-row-mid > * {
+                width: 100% !important;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            #mobile-hud-row-mid .glass-card.stats-row {
+                width: 100% !important;
+                flex-direction: column;
+                gap: 8px;
+                justify-content: center !important;
+                align-items: flex-start;
+                padding: 10px 12px;
+            }
+
+            #mobile-hud-row-mid .lora-gps-card {
+                width: 100% !important;
+                padding: 10px 12px;
+            }
+
+            #mobile-hud-row-bottom {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+                align-items: stretch;
+            }
+
+            #mobile-hud-row-bottom > * {
+                width: 100% !important;
+                box-sizing: border-box;
+            }
+
+            #mobile-hud-row-bottom .incident-card {
+                width: 100% !important;
+                display: flex;
+                flex-direction: column;
+            }
+
+            #incident-feed-m {
+                flex: 1;
+            }
+
+            #mobile-hud-row-legend { flex-shrink: 0; }
+            #mobile-hud-row-legend .legend-bar {
+                width: 100% !important;
+                grid-template-columns: repeat(4, 1fr);
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="#" class="nav-logo">
+        <img src="logo.png" alt="Eagle Eye Logo" class="brand-logo" onerror="this.style.display='none';">
+    </a>
+    <div class="nav-right">
+        <div class="nav-links">
+            <a href="home.html">Home</a>
+            <a href="dashboard.html" class="active">Dashboard</a>
+            <a href="mission.html">Mission</a>
+            <a href="reports.html">Reports</a>
+        </div>
+        <div class="nav-user">
+            <button class="hamburger-btn" id="hamburgerBtn" onclick="openMobileNav()" aria-label="Open navigation">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
+            <button class="dots-btn" id="menuBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle>
+                </svg>
+            </button>
+            <div class="dropdown-menu" id="dropdownMenu">
+                    <a href="profile.html">Account Profile</a>
+                    <hr class="dropdown-divider">
+                    <a href="index.html" class="logout-link" onclick="localStorage.removeItem('userRole')">End Session</a>
+                </div>
+        </div>
+    </div>
+
+<div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="closeMobileNav()"></div>
+<div class="mobile-nav-panel" id="mobileNavPanel">
+    <button class="mobile-nav-close" onclick="closeMobileNav()" aria-label="Close navigation">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    </button>
+    <a href="home.html">Home</a>
+    <a href="dashboard.html" class="active-mobile">Dashboard</a>
+    <a href="mission.html">Mission</a>
+    <a href="reports.html">Reports</a>
+    <hr class="mobile-divider">
+    <a href="profile.html">Profile Settings</a>
+    <hr class="mobile-divider">
+    <a href="index.html" class="mobile-logout" onclick="localStorage.clear()">End Session</a>
+</div>
+</nav>
+
+<main class="dashboard-layout">
+    <div class="hero-frame">
+        <div id="map"></div>
+
+        <div id="mobile-map-controls">
+            <button class="map-ctrl-btn" onclick="goToDrone()" title="Focus on Deployed Asset"><i class="fa-solid fa-plane-up"></i></button>
+            <button class="map-ctrl-btn" onclick="recenterMap()" title="Focus on Your Coordinates"><i class="fa-solid fa-location-crosshairs"></i></button>
+            <button class="map-ctrl-btn" onclick="goToParanaque()" title="Focus on Parañaque Area"><i class="fa-solid fa-map-location-dot"></i></button>
+            <div id="boundary-alert-mobile" style="display:none; padding:6px 10px; background:rgba(220,38,38,0.9); border:1px solid #ff4d4d; border-radius:8px; color:white; font-weight:800; font-size:0.65rem; align-items:center; gap:6px;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>INSIDE RESTRICTED AIRSPACE</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" style="position: absolute; top: 28px; right: 306px; z-index: 5000; pointer-events: none; display: flex; flex-direction: column; gap: 8px;"></div>
+
+    <div class="hud hud-top-left">
+        <div style="display: flex; gap: 8px;">
+            <button class="map-ctrl-btn" id="center-drone-btn" onclick="goToDrone()" title="Focus on Deployed Asset"><i class="fa-solid fa-plane-up"></i></button>
+            <button class="map-ctrl-btn" id="center-user-btn" onclick="recenterMap()" title="Focus on Your Coordinates"><i class="fa-solid fa-location-crosshairs"></i></button>
+            <button class="map-ctrl-btn" id="center-pq-btn" onclick="goToParanaque()" title="Focus on Parañaque Area"><i class="fa-solid fa-map-location-dot"></i></button>
+        </div>
+        <div id="boundary-alert">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span id="alert-text">INSIDE RESTRICTED AIRSPACE</span>
+        </div>
+    </div>
+
+    <div class="hud hud-bottom-left">
+        <div class="glass-card stats-row" style="width: 320px; justify-content: space-between;">
+            <div class="stat-group">
+                <span class="s-label" id="weather-city">Weather Forecast</span>
+                <span class="s-value text-green" id="weather-val">Connecting...</span>
+            </div>
+            <div class="stat-group">
+                <span class="s-label" id="date-label">System Time</span>
+                <span class="s-value" id="time-val">--:--:--</span>
+            </div>
+        </div>
+
+        <div class="glass-card incident-card">
+            <div class="card-header">
+                <div style="display: flex; align-items: center; gap: 6px;"><div class="live-pulse"></div><h2>LIVE INCIDENT LOG</h2></div>
+                <span class="s-value text-orange" id="p-count">0</span>
+            </div>
+            <div id="incident-feed"></div>
+        </div>
+
+        <div class="glass-card legend-bar">
+            <div class="leg-item"><div class="l-box bg-pq"></div>PQ</div>
+            <div class="leg-item"><div class="l-box bg-bf"></div>BF</div>
+            <div class="leg-item"><div class="l-box bg-sa"></div>SA</div>
+            <div class="leg-item"><div class="l-box bg-restricted"></div>REST</div>
+            <div class="leg-item"><div class="l-box bg-incident"></div>INC</div>
+            <div class="leg-item"><div class="l-box bg-drone"></div>DRONE</div>
+            <div class="leg-item"><div class="l-box bg-user"></div>RESCUER</div>
+        </div>
+    </div>
+
+    <div id="mobile-hud-bar">
+        <div id="mobile-hud-row-mid">
+            <div class="glass-card stats-row" style="flex-direction:column; gap:8px; height:100%; justify-content:center;">
+                <div class="stat-group">
+                    <span class="s-label">Weather Forecast</span>
+                    <span class="s-value text-green" id="weather-val-m">Connecting...</span>
+                </div>
+                <div class="stat-group">
+                    <span class="s-label" id="date-label-m">System Time</span>
+                    <span class="s-value" id="time-val-m">--:--:--</span>
+                </div>
+            </div>
+            <div class="glass-card lora-gps-card" style="padding:10px 12px; height:100%; box-sizing:border-box;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:0.55rem; font-weight:900; color:var(--orange); text-transform:uppercase; letter-spacing:1px;">LORA GPS</span>
+                    <span style="display:flex; align-items:center; gap:4px; font-size:0.55rem; font-weight:800;">
+                        <span class="live-pulse" id="lora-pulse-m" style="background:#888;"></span>
+                        <span id="lora-status-m" style="color:#888;">STANDBY</span>
+                    </span>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+                    <div><div class="s-label">Latitude</div><div class="s-value text-green" style="font-size:0.7rem;" id="d-lat-m">—</div></div>
+                    <div><div class="s-label">Longitude</div><div class="s-value text-green" style="font-size:0.7rem;" id="d-lng-m">—</div></div>
+                    <div><div class="s-label">Altitude</div><div class="s-value" style="font-size:0.7rem;" id="d-alt-m">—</div></div>
+                    <div><div class="s-label">Velocity</div><div class="s-value" style="font-size:0.7rem;" id="d-spd-m">—</div></div>
+                    <div><div class="s-label">Satellites</div><div class="s-value" style="font-size:0.7rem;" id="d-sat-m">—</div></div>
+                    <div><div class="s-label">Packets</div><div class="s-value text-orange" style="font-size:0.7rem;" id="d-pkt-m">0</div></div>
+                </div>
+            </div>
+        </div>
+        <div id="mobile-hud-row-bottom">
+            <div class="glass-card incident-card" style="width:100%!important; display:flex; flex-direction:column; height:100%; box-sizing:border-box;">
+                <div class="card-header">
+                    <div style="display:flex; align-items:center; gap:6px;"><div class="live-pulse"></div><h2>LIVE INCIDENT LOG</h2></div>
+                    <span class="s-value text-orange" id="p-count-m">0</span>
+                </div>
+                <div id="incident-feed-m" style="flex:1; overflow-y:auto; padding:4px 0;"></div>
+            </div>
+            <div class="glass-card thermal-card-mobile" style="padding:0; overflow:hidden; width:100%!important; box-sizing:border-box; display:flex; flex-direction:column; height:100%;">
+                <div style="display:flex; flex-direction:column; padding:6px 10px; border-bottom:1px solid var(--border); flex-shrink:0; gap:3px;">
+                    <span style="font-size:0.5rem; font-weight:900; color:var(--orange); text-transform:uppercase; letter-spacing:1px; white-space:nowrap;">THERMAL IMAGING</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <span style="font-size:0.5rem; font-weight:800; color:#888;">MIN:</span>
+                        <b id="d-tmin-m" style="font-size:0.5rem; color:#4ade80;">—</b>
+                        <span style="font-size:0.5rem; color:#555;">|</span>
+                        <span style="font-size:0.5rem; font-weight:800; color:#888;">MAX:</span>
+                        <b id="d-tmax-m" style="font-size:0.5rem; color:#f87171;">—</b>
+                    </div>
+                </div>
+                <div id="d-thermal-m" style="display:grid; grid-template-columns:repeat(8,1fr); gap:2px; padding:6px; flex:1;"></div>
+            </div>
+        </div>
+        <div id="mobile-hud-row-legend">
+            <div class="glass-card legend-bar" style="width:100%!important;">
+                <div class="leg-item"><div class="l-box bg-pq"></div>PQ</div>
+                <div class="leg-item"><div class="l-box bg-bf"></div>BF</div>
+                <div class="leg-item"><div class="l-box bg-sa"></div>SA</div>
+                <div class="leg-item"><div class="l-box bg-restricted"></div>REST</div>
+                <div class="leg-item"><div class="l-box bg-incident"></div>INC</div>
+                <div class="leg-item"><div class="l-box bg-drone"></div>DRONE</div>
+                <div class="leg-item"><div class="l-box bg-user"></div>YOU</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hud hud-right-desktop" style="top:28px; right:28px; width:260px; display:flex; flex-direction:column; gap:8px;">
+      <div class="glass-card" style="padding:12px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.6rem; font-weight:900; color:var(--orange); text-transform:uppercase; letter-spacing:1px;">LORA GPS</span>
+          <span style="display:flex; align-items:center; gap:5px; font-size:0.6rem; font-weight:800;">
+            <span class="live-pulse" id="lora-pulse" style="background:#888;"></span>
+            <span id="lora-status" style="color:#888;">STANDBY</span>
+          </span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div>
+            <div class="s-label">Drone LAT</div>
+            <div class="s-value text-green" id="d-lat">—</div>
+          </div>
+          <div>
+            <div class="s-label">Drone LNG</div>
+            <div class="s-value text-green" id="d-lng">—</div>
+          </div>
+          <div>
+            <div class="s-label">Altitude</div>
+            <div class="s-value" id="d-alt">—</div>
+          </div>
+          <div>
+            <div class="s-label">Velocity</div>
+            <div class="s-value" id="d-spd">—</div>
+          </div>
+          <div>
+            <div class="s-label">Satellites</div>
+            <div class="s-value" id="d-sat">—</div>
+          </div>
+          <div>
+            <div class="s-label">Packets</div>
+            <div class="s-value text-orange" id="d-pkt">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card" style="padding:0; overflow:hidden;">
+        <div style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); gap:6px; flex-wrap:wrap;">
+          <span style="font-size:0.6rem; font-weight:900; color:var(--orange); text-transform:uppercase; letter-spacing:1px;">THERMAL SENSOR</span>
+          <span style="font-size:0.6rem; font-weight:800; color:#888;">MIN:</span>
+          <b id="d-tmin" style="font-size:0.6rem; color:#4ade80;">—</b>
+          <span style="font-size:0.6rem; color:#888;">°C</span>
+          <span style="font-size:0.6rem; color:#555;">|</span>
+          <span style="font-size:0.6rem; font-weight:800; color:#888;">MAX:</span>
+          <b id="d-tmax" style="font-size:0.6rem; color:#f87171;">—</b>
+          <span style="font-size:0.6rem; color:#888;">°C</span>
+        </div>
+        <div id="d-thermal" style="display:grid; grid-template-columns:repeat(8,1fr); gap:3px; padding:6px; background:#0a0a0a;"></div>
+        <div style="padding:6px 8px 8px; background:#0a0a0a;">
+          <div style="height:10px; border-radius:3px; background:linear-gradient(to right, rgb(10,0,0), rgb(80,10,0), rgb(200,0,0), rgb(230,80,0), rgb(255,220,180)); margin-bottom:4px;"></div>
+          <div style="display:flex; justify-content:space-between; font-size:0.5rem; font-weight:700; color:rgba(255,255,255,0.5); font-family:monospace;">
+            <span>20.0</span><span>22.5</span><span>25.0</span><span>27.5</span><span>30.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    window.SUPABASE_URL = 'https://rbxtwzbzglwekeztguhu.supabase.co';
+    window.SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJieHR3emJ6Z2x3ZWtlenRndWh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2Mjc4MTcsImV4cCI6MjA5MzIwMzgxN30.NAmFZn8wFsKC-EBI0YmAa24EQ2trHb_qkqBjnhPvjoA';
+</script>
+<script>
+    let map;
+    let DRONE_POS = null;
+    let USER_POS = null;
+    let userWatchId = null;
+    let CURRENT_USER_ROLE = localStorage.getItem('userRole') || 'operator';
+    
+    let supabaseClient = null;
+    try {
+        if (window.SUPABASE_URL && window.SUPABASE_KEY) {
+            supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+        }
+    } catch(e) { console.warn('Supabase init skipped:', e.message); }
+
+    if (!supabaseClient) {
+        const noopChain = () => {
+            const chain = {
+                select: () => chain, insert: () => chain, update: () => chain, delete: () => chain,
+                eq: () => chain, neq: () => chain, gte: () => chain, lte: () => chain,
+                order: () => chain, limit: () => chain, single: () => chain,
+                maybeSingle: async () => ({ data: null, error: null }),
+                then: (resolve) => resolve({ data: [], error: null })
+            };
+            chain[Symbol.thennable] = true;
+            return chain;
+        };
+        supabaseClient = {
+            auth: { signInAnonymously: async () => ({}) },
+            from: () => noopChain(),
+            channel: () => ({ on: function() { return this; }, subscribe: function() { return this; } })
+        };
+    }
+
+    const AREA_DATA = {
+        PQ: [[14.528232, 120.940262], [14.52209, 120.94201], [14.501115, 120.946978], [14.489926, 120.976063], [14.489327, 120.977412], [14.48735, 120.981253], [14.486314, 120.983008], [14.486081, 120.983464], [14.485846, 120.984044], [14.485335, 120.985067], [14.484697, 120.986053], [14.484426, 120.9864], [14.484114, 120.98677], [14.484193, 120.987273], [14.483894, 120.987736], [14.483948, 120.987835], [14.483993, 120.988029], [14.484044, 120.988176], [14.484051, 120.988234], [14.484044, 120.988293], [14.484027, 120.98837], [14.483968, 120.988354], [14.483926, 120.988352], [14.48389, 120.988365], [14.483811, 120.988396], [14.483759, 120.988426], [14.483712, 120.988463], [14.48367, 120.988497], [14.483625, 120.988538], [14.483574, 120.988584], [14.483507, 120.988632], [14.483437, 120.988678], [14.483373, 120.988716], [14.483272, 120.988774], [14.483181, 120.98883], [14.483079, 120.9889], [14.48298, 120.988968], [14.482905, 120.989014], [14.482825, 120.989059], [14.482662, 120.989105], [14.48248, 120.989259], [14.482367, 120.9894], [14.482339, 120.989444], [14.482345, 120.989497], [14.482378, 120.989533], [14.482488, 120.989583], [14.482596, 120.989609], [14.48268, 120.989615], [14.482994, 120.989638], [14.483035, 120.989656], [14.483061, 120.989678], [14.483204, 120.989906], [14.483277, 120.990029], [14.483288, 120.990064], [14.483271, 120.990099], [14.482836, 120.990639], [14.482824, 120.990676], [14.482851, 120.99076], [14.482975, 120.991049], [14.483005, 120.991146], [14.483003, 120.991233], [14.482985, 120.991334], [14.482913, 120.991691], [14.482895, 120.991822], [14.482913, 120.991876], [14.482941, 120.991918], [14.483106, 120.992008], [14.483209, 120.992071], [14.483245, 120.992124], [14.483245, 120.992189], [14.483214, 120.992334], [14.483173, 120.992449], [14.483104, 120.992559], [14.483057, 120.992621], [14.483003, 120.992674], [14.482938, 120.992712], [14.48288, 120.992717], [14.482818, 120.992708], [14.482685, 120.992654], [14.482524, 120.992592], [14.482409, 120.992566], [14.482283, 120.992537], [14.48214, 120.992518], [14.481933, 120.992499], [14.481774, 120.99249], [14.481589, 120.992477], [14.481395, 120.992442], [14.481139, 120.992385], [14.480848, 120.992318], [14.480573, 120.992259], [14.48045, 120.99221], [14.48042, 120.992183], [14.480401, 120.992129], [14.480383, 120.992075], [14.480341, 120.991945], [14.480321, 120.991879], [14.480276, 120.991783], [14.480192, 120.991642], [14.480161, 120.991585], [14.480095, 120.991534], [14.480014, 120.991483], [14.479976, 120.991469], [14.479917, 120.99147], [14.479791, 120.991482], [14.479722, 120.991482], [14.479663, 120.991469], [14.479615, 120.991438], [14.479555, 120.991394], [14.479417, 120.991263], [14.479329, 120.991178], [14.479256, 120.991115], [14.479171, 120.99105], [14.479068, 120.990959], [14.478962, 120.990843], [14.478826, 120.990672], [14.478482, 120.990257], [14.478453, 120.990241], [14.47841, 120.990236], [14.47837, 120.990243], [14.478333, 120.990257], [14.478283, 120.990298], [14.477739, 120.990659], [14.477432, 120.990871], [14.477182, 120.990519], [14.476224, 120.991149], [14.476214, 120.991171], [14.476194, 120.991196], [14.47614, 120.991252], [14.476088, 120.991335], [14.476047, 120.991396], [14.476003, 120.991449], [14.475935, 120.991518], [14.475859, 120.991583], [14.475817, 120.991629], [14.475778, 120.991678], [14.475763, 120.991706], [14.475749, 120.991755], [14.475741, 120.991832], [14.475869, 120.991914], [14.475981, 120.991966], [14.476076, 120.992028], [14.476121, 120.992176], [14.476142, 120.992402], [14.476141, 120.992682], [14.476255, 120.992835], [14.476297, 120.993008], [14.476282, 120.993099], [14.476164, 120.993219], [14.476077, 120.993269], [14.476034, 120.993254], [14.475966, 120.993182], [14.47579, 120.993099], [14.475744, 120.993113], [14.475755, 120.993256], [14.475746, 120.993398], [14.475705, 120.993462], [14.475641, 120.993503], [14.4755, 120.993526], [14.475473, 120.993606], [14.475526, 120.993777], [14.475532, 120.993843], [14.475511, 120.993917], [14.475441, 120.99406], [14.475366, 120.994228], [14.475241, 120.994395], [14.475151, 120.994498], [14.475046, 120.99457], [14.475007, 120.994627], [14.474985, 120.994692], [14.474995, 120.994791], [14.474998, 120.994849], [14.475053, 120.995066], [14.475076, 120.995323], [14.474926, 120.995494], [14.47471, 120.995584], [14.474555, 120.995649], [14.474436, 120.995744], [14.474422, 120.995952], [14.474469, 120.996087], [14.474527, 120.996258], [14.474544, 120.996413], [14.474452, 120.996575], [14.474378, 120.99674], [14.474195, 120.996903], [14.474095, 120.996859], [14.474012, 120.996876], [14.473816, 120.997127], [14.473741, 120.997152], [14.473613, 120.997204], [14.473332, 120.997198], [14.473105, 120.997229], [14.472964, 120.997265], [14.47285, 120.997294], [14.472696, 120.997333], [14.472359, 120.997575], [14.472045, 120.997877], [14.471658, 120.998302], [14.471268, 120.998781], [14.471149, 120.998928], [14.470638, 120.999209], [14.470258, 120.999443], [14.46991, 120.999707], [14.469622, 121.000028], [14.469441, 121.000241], [14.469209, 121.000513], [14.468993, 121.000712], [14.46885, 121.000754], [14.468634, 121.000906], [14.468514, 121.000997], [14.468202, 121.001215], [14.468115, 121.001311], [14.467785, 121.00145], [14.467693, 121.001552], [14.46768, 121.001654], [14.467679, 121.001863], [14.467304, 121.002163], [14.467177, 121.002225], [14.467094, 121.002207], [14.466754, 121.002105], [14.46651, 121.001968], [14.466404, 121.001897], [14.466339, 121.001949], [14.46613, 121.001866], [14.466071, 121.001875], [14.465965, 121.001916], [14.46591, 121.001923], [14.465632, 121.001834], [14.465303, 121.001864], [14.465267, 121.002044], [14.465033, 121.002031], [14.46501, 121.002083], [14.464441, 121.002092], [14.463527, 121.002085], [14.463365, 121.002043], [14.462984, 121.00204], [14.461675, 121.002035], [14.460951, 121.002143], [14.460597, 121.002381], [14.459924, 121.002219], [14.459357, 121.002232], [14.458546, 121.002532], [14.458376, 121.00258], [14.458188, 121.002584], [14.457803, 121.002567], [14.457833, 121.002399], [14.457753, 121.002365], [14.4579, 121.00208], [14.457211, 121.001668], [14.456947, 121.00219], [14.456671, 121.00227], [14.456014, 121.002604], [14.455576, 121.002595], [14.455572, 121.002385], [14.455653, 121.002127], [14.455002, 121.001918], [14.454118, 121.001585], [14.454106, 121.00197], [14.453875, 121.001972], [14.453886, 121.002227], [14.453855, 121.002431], [14.45475, 121.003598], [14.455268, 121.004238], [14.454971, 121.004455], [14.454593, 121.005144], [14.454041, 121.006799], [14.453933, 121.007104], [14.453775, 121.007606], [14.453316, 121.009209], [14.453151, 121.009913], [14.452944, 121.011094], [14.452728, 121.011128], [14.452495, 121.011137], [14.452179, 121.011162], [14.451938, 121.011231], [14.451764, 121.011403], [14.451697, 121.011574], [14.451697, 121.011746], [14.451606, 121.011909], [14.451406, 121.012072], [14.450991, 121.012373], [14.450641, 121.012456], [14.450371, 121.012448], [14.449952, 121.012759], [14.449644, 121.013016], [14.449378, 121.013051], [14.449129, 121.013034], [14.448821, 121.013059], [14.44858, 121.013171], [14.448283, 121.013638], [14.448165, 121.013797], [14.448023, 121.014098], [14.447857, 121.014347], [14.447666, 121.014493], [14.447517, 121.014724], [14.447359, 121.01499], [14.447209, 121.015317], [14.447159, 121.015557], [14.447101, 121.015875], [14.447076, 121.016055], [14.44691, 121.016227], [14.446478, 121.016544], [14.446261, 121.016638], [14.446045, 121.016801], [14.445813, 121.016862], [14.445696, 121.016767], [14.445643, 121.016685], [14.445524, 121.016585], [14.445322, 121.016471], [14.445098, 121.016317], [14.44484, 121.016175], [14.444591, 121.016063], [14.444358, 121.015945], [14.444183, 121.015926], [14.443959, 121.015897], [14.443599, 121.015935], [14.443129, 121.016118], [14.442267, 121.016412], [14.442001, 121.016494], [14.441642, 121.016474], [14.441449, 121.016387], [14.441154, 121.016149], [14.440537, 121.015773], [14.440317, 121.01573], [14.440012, 121.015677], [14.439884, 121.015651], [14.439768, 121.01564], [14.439545, 121.015539], [14.439205, 121.015402], [14.439005, 121.01542], [14.438806, 121.015523], [14.438689, 121.015686], [14.438548, 121.015909], [14.438374, 121.016072], [14.438224, 121.016166], [14.438016, 121.016106], [14.43785, 121.015969], [14.437659, 121.016029], [14.437517, 121.016201], [14.437492, 121.016364], [14.437551, 121.016553], [14.437601, 121.016741], [14.437584, 121.016999], [14.437517, 121.017282], [14.437418, 121.017531], [14.437276, 121.01772], [14.437153, 121.017904], [14.436462, 121.019751], [14.435556, 121.021073], [14.435266, 121.021351], [14.434893, 121.021659], [14.43503, 121.021916], [14.434648, 121.022162], [14.434239, 121.022332], [14.434361, 121.022826], [14.434392, 121.022992], [14.434397, 121.024204], [14.435379, 121.024348], [14.437171, 121.024297], [14.437312, 121.024723], [14.437511, 121.02512], [14.437913, 121.025651], [14.438911, 121.026703], [14.439228, 121.027052], [14.439392, 121.027242], [14.43962, 121.027451], [14.440036, 121.027837], [14.440354, 121.028288], [14.440535, 121.028541], [14.442222, 121.03244], [14.442521, 121.033183], [14.442472, 121.033434], [14.442356, 121.033605], [14.442098, 121.033846], [14.44194, 121.034249], [14.441433, 121.034558], [14.441375, 121.034979], [14.441151, 121.035133], [14.440852, 121.035485], [14.44081, 121.035691], [14.440669, 121.035803], [14.440644, 121.035974], [14.440428, 121.03612], [14.440239, 121.036275], [14.440164, 121.036361], [14.440149, 121.036449], [14.440216, 121.036723], [14.440401, 121.037018], [14.440893, 121.037876], [14.441099, 121.03779], [14.441186, 121.037802], [14.441217, 121.037867], [14.441218, 121.037982], [14.441323, 121.038082], [14.441361, 121.038196], [14.441519, 121.038451], [14.44161, 121.038592], [14.441673, 121.03867], [14.441753, 121.038719], [14.442023, 121.038783], [14.442114, 121.03882], [14.442171, 121.038871], [14.442231, 121.038997], [14.442289, 121.039263], [14.442041, 121.039594], [14.442114, 121.039909], [14.442138, 121.039942], [14.442384, 121.040116], [14.442551, 121.040175], [14.442654, 121.040207], [14.44281, 121.040202], [14.442914, 121.040175], [14.442997, 121.04017], [14.443029, 121.040212], [14.443023, 121.040288], [14.442992, 121.040363], [14.442935, 121.040465], [14.442935, 121.040524], [14.442977, 121.040556], [14.443205, 121.040738], [14.443273, 121.040797], [14.443392, 121.040813], [14.443496, 121.040819], [14.443563, 121.040878], [14.443621, 121.040942], [14.443688, 121.040964], [14.443777, 121.041033], [14.443808, 121.041135], [14.44387, 121.041291], [14.444326, 121.041038], [14.446637, 121.038609], [14.447767, 121.037305], [14.450203, 121.039503], [14.450898, 121.040104], [14.451621, 121.040304], [14.452834, 121.040693], [14.453081, 121.040929], [14.453161, 121.041013], [14.453315, 121.04116], [14.453018, 121.041893], [14.452982, 121.041958], [14.452714, 121.042485], [14.452709, 121.042639], [14.452815, 121.043201], [14.452759, 121.043741], [14.452191, 121.043684], [14.452139, 121.045054], [14.452131, 121.045314], [14.453734, 121.045285], [14.456453, 121.04531], [14.457302, 121.045307], [14.457703, 121.045293], [14.459091, 121.045287], [14.461273, 121.045277], [14.460909, 121.046273], [14.461415, 121.046278], [14.461449, 121.046461], [14.461624, 121.046416], [14.46212, 121.046306], [14.462121, 121.04628], [14.462145, 121.046074], [14.462283, 121.046112], [14.462526, 121.046191], [14.462715, 121.046327], [14.462835, 121.046419], [14.463002, 121.046528], [14.463546, 121.046723], [14.464168, 121.046946], [14.464895, 121.047114], [14.464988, 121.047064], [14.465052, 121.04707], [14.465107, 121.0471], [14.465199, 121.047185], [14.465345, 121.047316], [14.465508, 121.047399], [14.466358, 121.047479], [14.467202, 121.047409], [14.467875, 121.04751], [14.469316, 121.047704], [14.4704, 121.04792], [14.470553, 121.04733], [14.470705, 121.046492], [14.470744, 121.046275], [14.471044, 121.04633], [14.471138, 121.045826], [14.471403, 121.045826], [14.471607, 121.04585], [14.472282, 121.046119], [14.472352, 121.046658], [14.472749, 121.046895], [14.472551, 121.047167], [14.47242, 121.047524], [14.472432, 121.04753], [14.472543, 121.047586], [14.473161, 121.04779], [14.47332, 121.047851], [14.473584, 121.047927], [14.473696, 121.047948], [14.473986, 121.048014], [14.474698, 121.048118], [14.475096, 121.048132], [14.475281, 121.048138], [14.475326, 121.04814], [14.475451, 121.048138], [14.475648, 121.048127], [14.47578, 121.048119], [14.476237, 121.047975], [14.476641, 121.047833], [14.476904, 121.047802], [14.47724, 121.047675], [14.477961, 121.047397], [14.478075, 121.047361], [14.479078, 121.047022], [14.479169, 121.046973], [14.479634, 121.046831], [14.480149, 121.04664], [14.480136, 121.046557], [14.48027, 121.046545], [14.480863, 121.046179], [14.481049, 121.046107], [14.48157, 121.04598], [14.481632, 121.045948], [14.481727, 121.046222], [14.482328, 121.046192], [14.482751, 121.046218], [14.483169, 121.0463], [14.483546, 121.046382], [14.484391, 121.046514], [14.485205, 121.046584], [14.485376, 121.046588], [14.485547, 121.046593], [14.486278, 121.046498], [14.487117, 121.046458], [14.487262, 121.046476], [14.487359, 121.046482], [14.487611, 121.04658], [14.487875, 121.046666], [14.488292, 121.046797], [14.488995, 121.046978], [14.489303, 121.047007], [14.490572, 121.047273], [14.49116, 121.047328], [14.491473, 121.047357], [14.491528, 121.047535], [14.491674, 121.047549], [14.492355, 121.047658], [14.492816, 121.047758], [14.492994, 121.047733], [14.493147, 121.047717], [14.493739, 121.047657], [14.49426, 121.047568], [14.495065, 121.047521], [14.495486, 121.047479], [14.495646, 121.047463], [14.496743, 121.047343], [14.497648, 121.047258], [14.498377, 121.04716], [14.498673, 121.047115], [14.498821, 121.047134], [14.49941, 121.047003], [14.500144, 121.046859], [14.500272, 121.046622], [14.500617, 121.045947], [14.501143, 121.04493], [14.501444, 121.044259], [14.50173, 121.043787], [14.503269, 121.042067], [14.504208, 121.039944], [14.504723, 121.038761], [14.504355, 121.037802], [14.504068, 121.03705], [14.503971, 121.036785], [14.50733, 121.035032], [14.50729, 121.034743], [14.507238, 121.034482], [14.507149, 121.033967], [14.50698, 121.03167], [14.506597, 121.031686], [14.506543, 121.031403], [14.506366, 121.031145], [14.506198, 121.030823], [14.506107, 121.0306], [14.505931, 121.030548], [14.50594, 121.030291], [14.505833, 121.030239], [14.505857, 121.029965], [14.505808, 121.029784], [14.505591, 121.02957], [14.505347, 121.029318], [14.505198, 121.029149], [14.505189, 121.028915], [14.505077, 121.028729], [14.505407, 121.028435], [14.50549, 121.028207], [14.505629, 121.028004], [14.505631, 121.027783], [14.505528, 121.027646], [14.505401, 121.027653], [14.505319, 121.02759], [14.505104, 121.027219], [14.505151, 121.027098], [14.505076, 121.026926], [14.504919, 121.026771], [14.504796, 121.026526], [14.504752, 121.026416], [14.50456, 121.026308], [14.504424, 121.026157], [14.504696, 121.025929], [14.504857, 121.025845], [14.505008, 121.025803], [14.505079, 121.025742], [14.50513, 121.025673], [14.505145, 121.025559], [14.505138, 121.025374], [14.505167, 121.025152], [14.505156, 121.024986], [14.505089, 121.024819], [14.504997, 121.024677], [14.504936, 121.024595], [14.504877, 121.02454], [14.50484, 121.024441], [14.504867, 121.024265], [14.504782, 121.02407], [14.504869, 121.023939], [14.505066, 121.023697], [14.505155, 121.02359], [14.505164, 121.023547], [14.505158, 121.023489], [14.505127, 121.023453], [14.504987, 121.023397], [14.50493, 121.023383], [14.504801, 121.02339], [14.504695, 121.02332], [14.504474, 121.023116], [14.504452, 121.022981], [14.504542, 121.022644], [14.504504, 121.022559], [14.504314, 121.02251], [14.504249, 121.022403], [14.504185, 121.022274], [14.504295, 121.022171], [14.50435, 121.022105], [14.504344, 121.022049], [14.504316, 121.021979], [14.504254, 121.021922], [14.50414, 121.021817], [14.504066, 121.021729], [14.503979, 121.021643], [14.503883, 121.02154], [14.50348, 121.021213], [14.503362, 121.021117], [14.503215, 121.02103], [14.503091, 121.020934], [14.502933, 121.020712], [14.502837, 121.02054], [14.502778, 121.020413], [14.502677, 121.020319], [14.5025, 121.020326], [14.502326, 121.0203], [14.502226, 121.02018], [14.502162, 121.019909], [14.502116, 121.01976], [14.502027, 121.019475], [14.502022, 121.019372], [14.502044, 121.019128], [14.502128, 121.019025], [14.502249, 121.018829], [14.502289, 121.018368], [14.502287, 121.018248], [14.502252, 121.018099], [14.502261, 121.017995], [14.502339, 121.017921], [14.502385, 121.017877], [14.502514, 121.017754], [14.502612, 121.017566], [14.502603, 121.017502], [14.502559, 121.017423], [14.502466, 121.017235], [14.502396, 121.017149], [14.50238, 121.017093], [14.502477, 121.016868], [14.502438, 121.016798], [14.502382, 121.016668], [14.502276, 121.016575], [14.502028, 121.016455], [14.502006, 121.01637], [14.501984, 121.015726], [14.508893, 121.011136], [14.508921, 121.010484], [14.508698, 121.010279], [14.508571, 121.010148], [14.508517, 121.009975], [14.508475, 121.009723], [14.508476, 121.009461], [14.508539, 121.009211], [14.50868, 121.009091], [14.508838, 121.009056], [14.509112, 121.00897], [14.509311, 121.008833], [14.509419, 121.008687], [14.509527, 121.008473], [14.509561, 121.008301], [14.509561, 121.008172], [14.509544, 121.008043], [14.509561, 121.007941], [14.509644, 121.007889], [14.509827, 121.00788], [14.510109, 121.00782], [14.51045, 121.007829], [14.510574, 121.007743], [14.510649, 121.007666], [14.510677, 121.007556], [14.510699, 121.007345], [14.510727, 121.007154], [14.510699, 121.006979], [14.510666, 121.006739], [14.510624, 121.006507], [14.5106, 121.006291], [14.510633, 121.006163], [14.510741, 121.006018], [14.510757, 121.005898], [14.510767, 121.005664], [14.510723, 121.005492], [14.51072, 121.005404], [14.510717, 121.0053], [14.510755, 121.005158], [14.510873, 121.004983], [14.511141, 121.004778], [14.511149, 121.004716], [14.51108, 121.004646], [14.510836, 121.004475], [14.510636, 121.004293], [14.510417, 121.004147], [14.509998, 121.00404], [14.509823, 121.003945], [14.509799, 121.003884], [14.50978, 121.003815], [14.509846, 121.003558], [14.50988, 121.003342], [14.509834, 121.003163], [14.509639, 121.00292], [14.509537, 121.002744], [14.50945, 121.002546], [14.509418, 121.002385], [14.509469, 121.002142], [14.509374, 121.002108], [14.508551, 121.001817], [14.508339, 121.001742], [14.508241, 121.001706], [14.507603, 121.00147], [14.507727, 121.001339], [14.508188, 121.000815], [14.508458, 121.000511], [14.508607, 121.000042], [14.508689, 120.99977], [14.508854, 120.999791], [14.509906, 121.00006], [14.509996, 121.000083], [14.510152, 121.000136], [14.510233, 121.000163], [14.510251, 121.000204], [14.510595, 121.000251], [14.510967, 121.00028], [14.511307, 121.000297], [14.511501, 121.000308], [14.511457, 121.000758], [14.511864, 121.000878], [14.511824, 121.001114], [14.512241, 121.00114], [14.512373, 121.001098], [14.512488, 121.001013], [14.512934, 121.001008], [14.513471, 121.001102], [14.513873, 121.001092], [14.515022, 121.000906], [14.51694, 121.000467], [14.516952, 121.000155], [14.516983, 120.998426], [14.516994, 120.998034], [14.518137, 120.998631], [14.518726, 120.998928], [14.519445, 120.999336], [14.519682, 120.999421], [14.519969, 120.999346], [14.520446, 120.99906], [14.522094, 120.998844], [14.522837, 120.99888], [14.52399, 120.998868], [14.524248, 120.998829], [14.52501, 120.998735], [14.526989, 120.998406], [14.527058, 120.998401], [14.527306, 120.998324], [14.527429, 120.998319], [14.52751, 120.998357], [14.527619, 120.998535], [14.527745, 120.998802], [14.527842, 120.999053], [14.527908, 120.999163], [14.528038, 120.999238], [14.528312, 120.999363], [14.528591, 120.999507], [14.528721, 120.999599], [14.528873, 120.999671], [14.528987, 120.999714], [14.52913, 120.999736], [14.529378, 120.999759], [14.529627, 120.999767], [14.529712, 120.999765], [14.529773, 120.999783], [14.529844, 120.999825], [14.529934, 120.999752], [14.530048, 120.9997], [14.530318, 120.999565], [14.530538, 120.999434], [14.530833, 120.999296], [14.530997, 120.999245], [14.531163, 120.999237], [14.531449, 120.9993], [14.53173, 120.999386], [14.531793, 120.999397], [14.531831, 120.999394], [14.531859, 120.999375], [14.531871, 120.999331], [14.531874, 120.999083], [14.531885, 120.998849], [14.531905, 120.998799], [14.531953, 120.998746], [14.532041, 120.998711], [14.53237, 120.998705], [14.532498, 120.998733], [14.532514, 120.99871], [14.532668, 120.998495], [14.533188, 120.997983], [14.533202, 120.997499], [14.533228, 120.996622], [14.533235, 120.99656], [14.532863, 120.993354], [14.532827, 120.99305], [14.532806, 120.992901], [14.53278, 120.992644], [14.531252, 120.992815], [14.529789, 120.979096], [14.528232, 120.940262]],
+        BF: [[14.454118, 121.001585], [14.454106, 121.00197], [14.453875, 121.001972], [14.453886, 121.002227], [14.453855, 121.002431], [14.45475, 121.003598], [14.455268, 121.004238], [14.454971, 121.004455], [14.454593, 121.005144], [14.454041, 121.006799], [14.453933, 121.007104], [14.453775, 121.007606], [14.453316, 121.009209], [14.453151, 121.009913], [14.452944, 121.011094], [14.452728, 121.011128], [14.452495, 121.011137], [14.452179, 121.011162], [14.451938, 121.011231], [14.451764, 121.011403], [14.451697, 121.011574], [14.451697, 121.011746], [14.451606, 121.011909], [14.451406, 121.012072], [14.450991, 121.012373], [14.450641, 121.012456], [14.450371, 121.012448], [14.449952, 121.012759], [14.449644, 121.013016], [14.449378, 121.013051], [14.449129, 121.013034], [14.448821, 121.013059], [14.44858, 121.013171], [14.448283, 121.013638], [14.448165, 121.013797], [14.448023, 121.014098], [14.447857, 121.014347], [14.447666, 121.014493], [14.447517, 121.014724], [14.447359, 121.01499], [14.447209, 121.015317], [14.447159, 121.015557], [14.447101, 121.015875], [14.447076, 121.016055], [14.44691, 121.016227], [14.446478, 121.016544], [14.446261, 121.016638], [14.446045, 121.016801], [14.445813, 121.016862], [14.445696, 121.016767], [14.445643, 121.016685], [14.445524, 121.016585], [14.445322, 121.016471], [14.445098, 121.016317], [14.44484, 121.016175], [14.444591, 121.016063], [14.444358, 121.015945], [14.444183, 121.015926], [14.443959, 121.015897], [14.443599, 121.015935], [14.443129, 121.016118], [14.442267, 121.016412], [14.442001, 121.016494], [14.441642, 121.016474], [14.441449, 121.016387], [14.441154, 121.016149], [14.440537, 121.015773], [14.440317, 121.01573], [14.440012, 121.015677], [14.439884, 121.015651], [14.439768, 121.01564], [14.439545, 121.015539], [14.439205, 121.015402], [14.439005, 121.01542], [14.438806, 121.015523], [14.438689, 121.015686], [14.438548, 121.015909], [14.438374, 121.016072], [14.438224, 121.016166], [14.438016, 121.016106], [14.43785, 121.015969], [14.437659, 121.016029], [14.437517, 121.016201], [14.437492, 121.016364], [14.437551, 121.016553], [14.437601, 121.016741], [14.437584, 121.016999], [14.437517, 121.017282], [14.437418, 121.017531], [14.437276, 121.01772], [14.437153, 121.017904], [14.436462, 121.019751], [14.435556, 121.021073], [14.435266, 121.021351], [14.434893, 121.021659], [14.43503, 121.021916], [14.434648, 121.022162], [14.434239, 121.022332], [14.434361, 121.022826], [14.434392, 121.022992], [14.434397, 121.024204], [14.435379, 121.024348], [14.437171, 121.024297], [14.437312, 121.024723], [14.437511, 121.02512], [14.437913, 121.025651], [14.438911, 121.026703], [14.439228, 121.027052], [14.439392, 121.027242], [14.43962, 121.027451], [14.440036, 121.027837], [14.440354, 121.028288], [14.440535, 121.028541], [14.442222, 121.03244], [14.442521, 121.033183], [14.442472, 121.033434], [14.442356, 121.033605], [14.442098, 121.033846], [14.44194, 121.034249], [14.441433, 121.034558], [14.441375, 121.034979], [14.441151, 121.035133], [14.440852, 121.035485], [14.44081, 121.035691], [14.440669, 121.035803], [14.440644, 121.035974], [14.440428, 121.03612], [14.440239, 121.036275], [14.440164, 121.036361], [14.440149, 121.036449], [14.440216, 121.036723], [14.440401, 121.037018], [14.440893, 121.037876], [14.441099, 121.03779], [14.441186, 121.037802], [14.441217, 121.037867], [14.441218, 121.037982], [14.441323, 121.038082], [14.441361, 121.038196], [14.441519, 121.038451], [14.44161, 121.038592], [14.441673, 121.03867], [14.441753, 121.038719], [14.442023, 121.038783], [14.442114, 121.03882], [14.442171, 121.038871], [14.442231, 121.038997], [14.442289, 121.039263], [14.442041, 121.039594], [14.442114, 121.039909], [14.442138, 121.039942], [14.442384, 121.040116], [14.442551, 121.040175], [14.442654, 121.040207], [14.44281, 121.040202], [14.442914, 121.040175], [14.442997, 121.04017], [14.443029, 121.040212], [14.443023, 121.040288], [14.442992, 121.040363], [14.442935, 121.040465], [14.442935, 121.040524], [14.442977, 121.040556], [14.443205, 121.040738], [14.443273, 121.040797], [14.443392, 121.040813], [14.443496, 121.040819], [14.443563, 121.040878], [14.443621, 121.040942], [14.443688, 121.040964], [14.443777, 121.041033], [14.443808, 121.041135], [14.44387, 121.041291], [14.444326, 121.041038], [14.446637, 121.038609], [14.447767, 121.037305], [14.450203, 121.039503], [14.450898, 121.040104], [14.451621, 121.040304], [14.452834, 121.040693], [14.453081, 121.040929], [14.453161, 121.041013], [14.453315, 121.04116], [14.453018, 121.041893], [14.452982, 121.041958], [14.452714, 121.042485], [14.452709, 121.042639], [14.452815, 121.043201], [14.452759, 121.043741], [14.452191, 121.043684], [14.452139, 121.045054], [14.452131, 121.045314], [14.453734, 121.045285], [14.454031, 121.044359], [14.454973, 121.041316], [14.45616, 121.036731], [14.456243, 121.03642], [14.456404, 121.03596], [14.45654, 121.035613], [14.456733, 121.035211], [14.45729, 121.034239], [14.458437, 121.03219], [14.459899, 121.029599], [14.462071, 121.025267], [14.463148, 121.02313], [14.464617, 121.020156], [14.46281, 121.019321], [14.462743, 121.020363], [14.462271, 121.020237], [14.461015, 121.020115], [14.460713, 121.020048], [14.460371, 121.020008], [14.459996, 121.019979], [14.459794, 121.019872], [14.459729, 121.019764], [14.459663, 121.019576], [14.459364, 121.019442], [14.459231, 121.019279], [14.459176, 121.019073], [14.459148, 121.018884], [14.459124, 121.018638], [14.45912, 121.018424], [14.459189, 121.01822], [14.459159, 121.01818], [14.459008, 121.018021], [14.458737, 121.017853], [14.458272, 121.017547], [14.457989, 121.017335], [14.457707, 121.01706], [14.457424, 121.016763], [14.457378, 121.016712], [14.457233, 121.016784], [14.45718, 121.016816], [14.457152, 121.016862], [14.457152, 121.01691], [14.457176, 121.016974], [14.457218, 121.017067], [14.457232, 121.017146], [14.457224, 121.017246], [14.457202, 121.017351], [14.456653, 121.017306], [14.456637, 121.0171], [14.456462, 121.01704], [14.456296, 121.017255], [14.456092, 121.01695], [14.455675, 121.016356], [14.455499, 121.016409], [14.455306, 121.015768], [14.455293, 121.015726], [14.455229, 121.015502], [14.455679, 121.015354], [14.455653, 121.014632], [14.456513, 121.014246], [14.457441, 121.01387], [14.457009, 121.012425], [14.45675, 121.011629], [14.456988, 121.011435], [14.457069, 121.011244], [14.457067, 121.011038], [14.457074, 121.010977], [14.456883, 121.010914], [14.456576, 121.010922], [14.456253, 121.010963], [14.456074, 121.010957], [14.456076, 121.010895], [14.456126, 121.010591], [14.456536, 121.008076], [14.456539, 121.008029], [14.456547, 121.007994], [14.456558, 121.007912], [14.456571, 121.007821], [14.457431, 121.007841], [14.457451, 121.008244], [14.457633, 121.010392], [14.457669, 121.010422], [14.457773, 121.010287], [14.457914, 121.010193], [14.458139, 121.010244], [14.458579, 121.010012], [14.458754, 121.009909], [14.458898, 121.009686], [14.45918, 121.009558], [14.459369, 121.009558], [14.459451, 121.009557], [14.459703, 121.009676], [14.459854, 121.00991], [14.459923, 121.010223], [14.459868, 121.010406], [14.459871, 121.010524], [14.459909, 121.010631], [14.46005, 121.01063], [14.460152, 121.01047], [14.460278, 121.010654], [14.460311, 121.010878], [14.460324, 121.011011], [14.460361, 121.011125], [14.46061, 121.011193], [14.460909, 121.011056], [14.461076, 121.010831], [14.461332, 121.010818], [14.461513, 121.010806], [14.461586, 121.010917], [14.46155, 121.011192], [14.461684, 121.01141], [14.461761, 121.011479], [14.461824, 121.011514], [14.461909, 121.011534], [14.462008, 121.01153], [14.462169, 121.011473], [14.462336, 121.011478], [14.46257, 121.011651], [14.462766, 121.011726], [14.46301, 121.011779], [14.463311, 121.011829], [14.463619, 121.011854], [14.463841, 121.011838], [14.464073, 121.011678], [14.464276, 121.011591], [14.464572, 121.011603], [14.464772, 121.011634], [14.464879, 121.011686], [14.465161, 121.011772], [14.465427, 121.011806], [14.465598, 121.011643], [14.465685, 121.011283], [14.46581, 121.011154], [14.466076, 121.010999], [14.466209, 121.010991], [14.466325, 121.011111], [14.466441, 121.011105], [14.466497, 121.010942], [14.466462, 121.010658], [14.466542, 121.010559], [14.466773, 121.010371], [14.467029, 121.010265], [14.467251, 121.010199], [14.467215, 121.009964], [14.46594, 121.008286], [14.466724, 121.007645], [14.465777, 121.006204], [14.464881, 121.006941], [14.464369, 121.007318], [14.464014, 121.007483], [14.463884, 121.006788], [14.463135, 121.006854], [14.463051, 121.005752], [14.462973, 121.005707], [14.462936, 121.005435], [14.462612, 121.005553], [14.462336, 121.005599], [14.462361, 121.00432], [14.461929, 121.004437], [14.461688, 121.004521], [14.460768, 121.004549], [14.460942, 121.002255], [14.460945, 121.002226], [14.460951, 121.002143], [14.460597, 121.002381], [14.459924, 121.002219], [14.459357, 121.002232], [14.458546, 121.002532], [14.458376, 121.00258], [14.458188, 121.002584], [14.457803, 121.002567], [14.457833, 121.002399], [14.457753, 121.002365], [14.4579, 121.00208], [14.457211, 121.001668], [14.456947, 121.00219], [14.456671, 121.00227], [14.456014, 121.002604], [14.455576, 121.002595], [14.455572, 121.002385], [14.455653, 121.002127], [14.455002, 121.001918], [14.454118, 121.001585]],
+        SA: [[14.476197, 121.03354], [14.476857, 121.03278], [14.477473, 121.032594], [14.477693, 121.032547], [14.477558, 121.03236], [14.477903, 121.032197], [14.477998, 121.031782], [14.478199, 121.030933], [14.477402, 121.030748], [14.476572, 121.030518], [14.476021, 121.03054], [14.475151, 121.030575], [14.475487, 121.028861], [14.475674, 121.027692], [14.475641, 121.027369], [14.475372, 121.026996], [14.475482, 121.026703], [14.475965, 121.025415], [14.475994, 121.025337], [14.476055, 121.025167], [14.473798, 121.024236], [14.472612, 121.023665], [14.472566, 121.023649], [14.472558, 121.023539], [14.472554, 121.023452], [14.472566, 121.023424], [14.472601, 121.023398], [14.472718, 121.023378], [14.472879, 121.023264], [14.47291, 121.023219], [14.472943, 121.02313], [14.472933, 121.023019], [14.472963, 121.022853], [14.473046, 121.022757], [14.473146, 121.022581], [14.473088, 121.022471], [14.472932, 121.022428], [14.47273, 121.022374], [14.472636, 121.022285], [14.472608, 121.022217], [14.472751, 121.022053], [14.473032, 121.021988], [14.47326, 121.02187], [14.473551, 121.021731], [14.473749, 121.021688], [14.473837, 121.021618], [14.473937, 121.021488], [14.473853, 121.021403], [14.473762, 121.021308], [14.473621, 121.021168], [14.473646, 121.021102], [14.47379, 121.020937], [14.473863, 121.020851], [14.473855, 121.020749], [14.473803, 121.020676], [14.47356, 121.020529], [14.473486, 121.020445], [14.473624, 121.020174], [14.473559, 121.020104], [14.473424, 121.020036], [14.473154, 121.020086], [14.473076, 121.020077], [14.473004, 121.02002], [14.472798, 121.019853], [14.47267, 121.019832], [14.472435, 121.019865], [14.472301, 121.01987], [14.472097, 121.019832], [14.472031, 121.019735], [14.471988, 121.019651], [14.471962, 121.019553], [14.47198, 121.019389], [14.471993, 121.019274], [14.471983, 121.01921], [14.471798, 121.01903], [14.471692, 121.01878], [14.471567, 121.018716], [14.471468, 121.018512], [14.471519, 121.018346], [14.471566, 121.018142], [14.471562, 121.01785], [14.471609, 121.017744], [14.471836, 121.017636], [14.471889, 121.017588], [14.471897, 121.017382], [14.471719, 121.017209], [14.471724, 121.017093], [14.471731, 121.016904], [14.471827, 121.016683], [14.471877, 121.016513], [14.47202, 121.016325], [14.472067, 121.016142], [14.472076, 121.016023], [14.472063, 121.015921], [14.472055, 121.015775], [14.472101, 121.015676], [14.471887, 121.01571], [14.471817, 121.015752], [14.471782, 121.015799], [14.471782, 121.015948], [14.471613, 121.016048], [14.4715, 121.016297], [14.471464, 121.016393], [14.471287, 121.016592], [14.471061, 121.016651], [14.47084, 121.016753], [14.470175, 121.016989], [14.469417, 121.017235], [14.469181, 121.017315], [14.468992, 121.017359], [14.468781, 121.017363], [14.468657, 121.017378], [14.468394, 121.017404], [14.46825, 121.017315], [14.468091, 121.017187], [14.467628, 121.017472], [14.467434, 121.017379], [14.467274, 121.017644], [14.467241, 121.017697], [14.467015, 121.017561], [14.466982, 121.017635], [14.466885, 121.017878], [14.46647, 121.017674], [14.466372, 121.017726], [14.465898, 121.017383], [14.465316, 121.018649], [14.464801, 121.019786], [14.464617, 121.020156], [14.463148, 121.02313], [14.462071, 121.025267], [14.459899, 121.029599], [14.458437, 121.03219], [14.45729, 121.034239], [14.456733, 121.035211], [14.45654, 121.035613], [14.456404, 121.03596], [14.456243, 121.03642], [14.45616, 121.036731], [14.454973, 121.041316], [14.454031, 121.044359], [14.453734, 121.045285], [14.456453, 121.04531], [14.457302, 121.045307], [14.457703, 121.045293], [14.459091, 121.045287], [14.459133, 121.045023], [14.459256, 121.044429], [14.459383, 121.043577], [14.459342, 121.043405], [14.458531, 121.043244], [14.458646, 121.042686], [14.458675, 121.042626], [14.458708, 121.042486], [14.458947, 121.042547], [14.459204, 121.041686], [14.459209, 121.04167], [14.459537, 121.040206], [14.459613, 121.039391], [14.459671, 121.038767], [14.459789, 121.037697], [14.460755, 121.03774], [14.461027, 121.037782], [14.461069, 121.037458], [14.461203, 121.037468], [14.461226, 121.0369], [14.461239, 121.036613], [14.461343, 121.036304], [14.461861, 121.036368], [14.462379, 121.036465], [14.463097, 121.036525], [14.463069, 121.036351], [14.463119, 121.03626], [14.463222, 121.036112], [14.463236, 121.036047], [14.463236, 121.035892], [14.463136, 121.035625], [14.463078, 121.035496], [14.463081, 121.03533], [14.463175, 121.035067], [14.463188, 121.034904], [14.463167, 121.0348], [14.463055, 121.034549], [14.462949, 121.034402], [14.462818, 121.034281], [14.462746, 121.0342], [14.46277, 121.033983], [14.462848, 121.033814], [14.462901, 121.033707], [14.463055, 121.033581], [14.463163, 121.033519], [14.463233, 121.033481], [14.463257, 121.033465], [14.463262, 121.033417], [14.463218, 121.033389], [14.463166, 121.033288], [14.463223, 121.033216], [14.463282, 121.033193], [14.463372, 121.033151], [14.4635, 121.033021], [14.463553, 121.032952], [14.463639, 121.0332], [14.463791, 121.033288], [14.463905, 121.033306], [14.464023, 121.033359], [14.464281, 121.033473], [14.464639, 121.03364], [14.464816, 121.03373], [14.46495, 121.033813], [14.465068, 121.033943], [14.465254, 121.034049], [14.465386, 121.033909], [14.465599, 121.033954], [14.46567, 121.033247], [14.465692, 121.032552], [14.466916, 121.032645], [14.466895, 121.033367], [14.467051, 121.033392], [14.467094, 121.03337], [14.467192, 121.033225], [14.467274, 121.033091], [14.467434, 121.033001], [14.467429, 121.032486], [14.467387, 121.032387], [14.467377, 121.032348], [14.467363, 121.032261], [14.467357, 121.032127], [14.467339, 121.032048], [14.467318, 121.031985], [14.467292, 121.03193], [14.467285, 121.031816], [14.467322, 121.031803], [14.468746, 121.032124], [14.468817, 121.032124], [14.469271, 121.032131], [14.470888, 121.032113], [14.470892, 121.032599], [14.470791, 121.032835], [14.470585, 121.033132], [14.470796, 121.033149], [14.471056, 121.033177], [14.471164, 121.033188], [14.471469, 121.03323], [14.471524, 121.033249], [14.471493, 121.033839], [14.471496, 121.034516], [14.47162, 121.034533], [14.472057, 121.034602], [14.472122, 121.034544], [14.472501, 121.034094], [14.472816, 121.033927], [14.472808, 121.033798], [14.472974, 121.033823], [14.473143, 121.033846], [14.473143, 121.033844], [14.473432, 121.033882], [14.473482, 121.033839], [14.473663, 121.033664], [14.47369, 121.033915], [14.473724, 121.034004], [14.47414, 121.033947], [14.474212, 121.033906], [14.474116, 121.033709], [14.474737, 121.033439], [14.474994, 121.033408], [14.475586, 121.033654], [14.475604, 121.03365], [14.475784, 121.03363], [14.475842, 121.033752], [14.476197, 121.03354]],
+        RESTRICTED: [[14.500375, 120.997508], [14.500267, 120.997651], [14.500179, 120.99757], [14.500167, 120.997581], [14.500133, 120.997589], [14.500086, 120.997599], [14.499555, 120.997724], [14.498787, 120.997886], [14.497578, 120.998117], [14.497522, 120.998125], [14.497477, 120.998157], [14.497428, 120.998214], [14.49714, 120.998601], [14.497105, 120.998652], [14.497084, 120.998711], [14.497027, 120.998929], [14.496977, 120.999126], [14.49691, 120.999411], [14.496894, 120.999468], [14.496877, 120.999515], [14.496865, 120.999533], [14.496607, 120.999808], [14.496571, 120.999856], [14.496531, 120.999905], [14.496433, 121.00003], [14.496311, 121.000151], [14.496276, 121.000189], [14.496231, 121.000233], [14.496517, 121.000722], [14.496755, 121.001158], [14.497026, 121.001656], [14.497347, 121.002216], [14.497582, 121.00262], [14.497886, 121.003183], [14.498299, 121.003926], [14.498655, 121.004565], [14.498869, 121.004958], [14.498944, 121.005014], [14.499035, 121.005061], [14.499085, 121.005331], [14.49945, 121.005973], [14.49987, 121.006722], [14.500461, 121.007781], [14.500987, 121.008708], [14.501564, 121.009705], [14.503049, 121.01231], [14.503583, 121.013258], [14.503727, 121.013644], [14.503839, 121.014208], [14.503843, 121.014719], [14.50376, 121.015278], [14.503334, 121.018134], [14.503299, 121.018635], [14.503321, 121.019011], [14.503403, 121.019419], [14.503486, 121.019608], [14.503855, 121.019876], [14.504402, 121.020459], [14.504498, 121.020627], [14.504629, 121.021068], [14.504822, 121.021386], [14.504889, 121.021461], [14.505012, 121.021622], [14.505864, 121.023378], [14.505975, 121.023612], [14.506361, 121.023633], [14.507261, 121.023621], [14.507515, 121.023911], [14.507741, 121.024188], [14.507711, 121.024253], [14.507646, 121.024393], [14.507604, 121.024377], [14.507551, 121.024371], [14.507215, 121.024437], [14.50654, 121.024599], [14.507049, 121.025391], [14.507128, 121.025537], [14.507292, 121.025937], [14.510644, 121.031186], [14.510993, 121.03167], [14.511187, 121.031552], [14.511235, 121.031555], [14.511292, 121.031568], [14.511337, 121.031586], [14.511361, 121.031619], [14.511403, 121.031705], [14.51144, 121.031778], [14.511459, 121.031815], [14.512395, 121.031303], [14.512745, 121.031139], [14.513144, 121.030983], [14.513442, 121.030884], [14.513801, 121.030762], [14.514045, 121.030679], [14.514243, 121.030599], [14.514508, 121.030484], [14.514898, 121.0303], [14.51524, 121.030126], [14.515494, 121.029991], [14.515987, 121.029742], [14.516277, 121.029596], [14.516388, 121.029554], [14.517285, 121.028933], [14.516586, 121.0277], [14.515798, 121.028106], [14.515697, 121.027916], [14.515902, 121.027806], [14.515759, 121.027526], [14.51582, 121.02749], [14.515982, 121.027793], [14.516496, 121.027513], [14.51633, 121.027207], [14.516379, 121.027178], [14.51651, 121.027419], [14.516943, 121.027168], [14.516819, 121.026938], [14.516884, 121.026899], [14.517273, 121.026685], [14.517224, 121.026601], [14.517193, 121.02655], [14.517215, 121.026515], [14.517232, 121.02648], [14.517245, 121.026437], [14.517249, 121.026404], [14.517242, 121.026364], [14.517225, 121.026332], [14.517199, 121.026279], [14.517224, 121.026265], [14.517186, 121.026196], [14.517213, 121.026199], [14.5172, 121.026096], [14.517129, 121.026038], [14.517116, 121.026067], [14.517077, 121.025989], [14.517048, 121.026006], [14.517001, 121.025935], [14.516981, 121.025909], [14.516952, 121.025891], [14.516921, 121.025885], [14.516834, 121.025893], [14.516795, 121.02585], [14.516762, 121.025808], [14.516653, 121.025626], [14.516488, 121.025735], [14.516453, 121.025763], [14.516137, 121.02528], [14.516909, 121.024725], [14.516644, 121.02434], [14.516631, 121.024261], [14.516626, 121.024197], [14.516634, 121.024146], [14.516654, 121.02409], [14.51669, 121.02404], [14.516734, 121.023997], [14.516787, 121.023946], [14.516872, 121.023863], [14.514676, 121.01993], [14.513671, 121.020544], [14.513385, 121.020724], [14.513226, 121.020587], [14.513136, 121.019957], [14.513219, 121.02006], [14.513594, 121.020419], [14.514014, 121.019931], [14.514043, 121.019898], [14.514138, 121.019993], [14.514165, 121.020021], [14.51419, 121.019997], [14.514221, 121.020029], [14.514294, 121.019948], [14.514276, 121.019932], [14.514583, 121.019608], [14.514616, 121.019641], [14.51469, 121.019562], [14.514532, 121.019402], [14.514562, 121.019374], [14.51458, 121.019356], [14.514598, 121.019374], [14.514696, 121.019274], [14.514673, 121.019251], [14.514984, 121.018931], [14.514636, 121.018569], [14.51493, 121.018267], [14.515314, 121.018203], [14.515502, 121.018602], [14.515939, 121.019003], [14.516021, 121.018986], [14.516059, 121.019073], [14.516359, 121.018775], [14.516408, 121.018823], [14.516444, 121.018794], [14.516468, 121.018732], [14.516531, 121.018674], [14.516647, 121.018527], [14.516705, 121.018444], [14.516967, 121.018257], [14.517183, 121.018072], [14.518746, 121.016431], [14.518758, 121.01641], [14.518767, 121.016381], [14.518773, 121.016339], [14.518773, 121.01631], [14.518768, 121.016284], [14.518757, 121.016256], [14.518743, 121.016227], [14.518721, 121.016199], [14.518699, 121.016174], [14.518194, 121.015656], [14.517803, 121.015231], [14.517733, 121.01515], [14.517661, 121.015211], [14.517647, 121.015224], [14.517624, 121.015244], [14.517606, 121.015225], [14.517568, 121.015182], [14.518071, 121.014663], [14.518075, 121.014667], [14.518345, 121.014388], [14.518537, 121.01419], [14.51859, 121.014245], [14.518728, 121.01408], [14.518718, 121.014071], [14.51875, 121.014043], [14.519084, 121.014388], [14.519094, 121.014401], [14.519117, 121.014427], [14.519188, 121.014351], [14.519215, 121.014379], [14.519273, 121.014439], [14.519583, 121.01476], [14.519501, 121.014841], [14.519537, 121.014879], [14.519557, 121.0149], [14.519614, 121.014843], [14.51971, 121.014746], [14.519734, 121.014723], [14.519737, 121.014719], [14.519754, 121.014702], [14.519779, 121.014675], [14.519827, 121.014626], [14.519862, 121.014589], [14.519964, 121.01448], [14.519994, 121.014447], [14.520017, 121.01442], [14.519987, 121.014393], [14.520177, 121.014208], [14.520177, 121.014204], [14.520192, 121.014189], [14.520202, 121.014179], [14.520223, 121.014156], [14.520241, 121.014137], [14.520406, 121.013965], [14.520408, 121.013965], [14.520421, 121.013952], [14.520433, 121.01394], [14.520453, 121.01392], [14.520472, 121.013899], [14.520645, 121.013725], [14.520653, 121.013713], [14.520667, 121.013699], [14.520674, 121.013691], [14.520688, 121.013676], [14.520704, 121.013659], [14.520863, 121.013498], [14.52087, 121.01349], [14.520878, 121.01348], [14.520887, 121.01347], [14.520893, 121.013464], [14.520928, 121.013428], [14.5211, 121.013254], [14.521111, 121.01324], [14.521117, 121.013233], [14.521128, 121.013222], [14.52114, 121.013209], [14.521163, 121.013185], [14.521329, 121.013013], [14.52136, 121.012979], [14.521378, 121.012958], [14.521198, 121.012774], [14.521001, 121.012567], [14.52095, 121.012518], [14.520997, 121.012467], [14.52068, 121.012148], [14.520692, 121.012135], [14.520765, 121.01206], [14.521184, 121.011628], [14.521653, 121.011143], [14.521904, 121.010875], [14.521898, 121.010868], [14.522023, 121.010734], [14.522033, 121.010745], [14.522189, 121.010584], [14.522208, 121.010561], [14.522286, 121.010481], [14.522448, 121.010314], [14.522507, 121.010252], [14.522553, 121.010294], [14.523176, 121.009644], [14.523349, 121.009474], [14.523369, 121.009494], [14.523408, 121.009452], [14.523455, 121.009402], [14.524398, 121.010355], [14.524813, 121.009953], [14.524958, 121.010048], [14.524857, 121.010761], [14.5249, 121.010842], [14.5252, 121.01111], [14.525328, 121.011228], [14.525499, 121.011197], [14.52558, 121.011162], [14.525829, 121.010994], [14.526113, 121.010796], [14.526388, 121.010569], [14.526501, 121.010445], [14.526654, 121.010261], [14.526814, 121.010015], [14.52691, 121.009837], [14.526972, 121.009667], [14.527025, 121.009466], [14.527068, 121.009253], [14.527145, 121.008846], [14.527244, 121.008098], [14.527311, 121.007655], [14.527416, 121.006944], [14.527505, 121.006406], [14.527526, 121.006286], [14.527593, 121.00591], [14.527618, 121.005752], [14.527881, 121.004173], [14.527998, 121.003469], [14.528068, 121.003009], [14.528059, 121.002886], [14.528146, 121.002277], [14.528158, 121.002099], [14.528153, 121.001951], [14.528118, 121.001785], [14.528038, 121.001583], [14.527828, 121.00126], [14.527697, 121.001058], [14.527653, 121.001076], [14.527633, 121.001041], [14.527618, 121.001013], [14.527643, 121.000987], [14.52759, 121.000907], [14.527416, 121.000649], [14.527364, 121.00055], [14.527325, 121.000448], [14.527288, 121.000315], [14.527266, 121.000191], [14.527241, 121.00004], [14.527229, 121.000014], [14.527207, 120.999976], [14.52717, 120.999928], [14.527128, 120.9999], [14.527086, 120.999881], [14.527051, 120.999875], [14.527007, 120.999891], [14.526463, 121.000097], [14.526447, 121.000052], [14.526184, 121.000158], [14.526099, 121.000187], [14.525826, 121.000297], [14.525545, 121.000412], [14.525304, 121.000502], [14.525231, 121.000559], [14.525151, 121.000608], [14.525169, 121.000661], [14.525139, 121.000686], [14.525013, 121.000816], [14.524994, 121.000798], [14.524922, 121.00087], [14.524897, 121.000897], [14.524609, 121.001211], [14.524582, 121.001234], [14.524502, 121.001315], [14.524335, 121.001325], [14.524334, 121.001289], [14.523906, 121.001303], [14.523916, 121.001646], [14.523771, 121.001651], [14.523759, 121.001651], [14.523751, 121.001425], [14.523751, 121.00142], [14.523753, 121.00142], [14.523749, 121.001326], [14.523749, 121.001322], [14.52376, 121.001321], [14.523757, 121.001243], [14.523684, 121.001246], [14.523684, 121.001266], [14.52368, 121.001266], [14.523554, 121.001271], [14.523554, 121.001268], [14.523549, 121.001145], [14.523549, 121.001141], [14.52358, 121.00114], [14.523577, 121.001055], [14.523507, 121.001058], [14.523493, 121.001059], [14.523492, 121.000999], [14.522805, 121.001019], [14.522749, 121.001021], [14.52275, 121.001048], [14.522728, 121.001049], [14.522675, 121.00105], [14.522676, 121.001083], [14.522055, 121.001102], [14.521942, 121.001107], [14.521925, 121.001107], [14.521882, 121.001109], [14.521241, 121.001123], [14.521202, 121.001106], [14.5212, 121.001011], [14.520399, 121.001026], [14.520409, 121.00175], [14.52041, 121.001829], [14.520414, 121.002121], [14.520416, 121.002302], [14.520345, 121.002301], [14.520147, 121.002304], [14.520146, 121.002214], [14.520122, 121.001074], [14.520053, 121.00108], [14.519914, 121.00109], [14.519724, 121.00109], [14.519478, 121.001091], [14.519021, 121.001111], [14.518585, 121.001123], [14.518566, 121.001124], [14.51791, 121.001154], [14.517541, 121.001164], [14.517084, 121.001176], [14.517041, 121.001181], [14.517018, 121.001188], [14.516993, 121.001213], [14.516972, 121.001245], [14.516962, 121.001289], [14.516955, 121.001345], [14.516963, 121.001449], [14.51696, 121.001506], [14.516859, 121.001749], [14.516782, 121.001939], [14.516704, 121.002118], [14.516615, 121.002332], [14.516553, 121.002453], [14.51638, 121.002756], [14.516267, 121.002708], [14.516215, 121.002764], [14.516137, 121.002903], [14.516048, 121.003101], [14.515837, 121.00357], [14.515824, 121.003557], [14.515773, 121.003655], [14.515811, 121.003706], [14.516071, 121.004019], [14.51658, 121.004688], [14.517246, 121.005593], [14.518079, 121.007538], [14.517904, 121.00771], [14.517541, 121.008079], [14.516897, 121.00875], [14.516003, 121.009677], [14.515975, 121.009706], [14.515045, 121.00869], [14.512876, 121.010901], [14.513172, 121.011329], [14.513308, 121.011532], [14.513376, 121.011631], [14.513104, 121.011828], [14.512517, 121.012264], [14.512099, 121.012568], [14.511808, 121.012099], [14.51128, 121.011673], [14.511175, 121.011765], [14.51099, 121.011575], [14.51096, 121.011605], [14.510843, 121.011727], [14.510965, 121.011853], [14.51097, 121.011859], [14.51078, 121.012059], [14.510653, 121.011931], [14.510476, 121.012112], [14.510427, 121.012161], [14.51014, 121.012458], [14.51012, 121.012481], [14.510091, 121.012511], [14.50972, 121.012883], [14.509702, 121.012878], [14.509681, 121.012872], [14.50965, 121.012826], [14.509429, 121.012426], [14.509409, 121.012395], [14.509393, 121.012363], [14.509051, 121.011745], [14.509033, 121.011712], [14.508876, 121.011794], [14.508725, 121.011519], [14.508665, 121.011552], [14.508639, 121.011566], [14.508504, 121.01132], [14.508556, 121.011291], [14.50853, 121.011242], [14.508509, 121.011206], [14.508665, 121.011113], [14.508537, 121.010886], [14.508463, 121.010755], [14.508434, 121.010772], [14.508418, 121.010743], [14.508561, 121.010654], [14.508496, 121.010536], [14.507863, 121.009382], [14.507806, 121.009285], [14.507057, 121.007931], [14.507014, 121.007916], [14.506974, 121.007846], [14.506946, 121.007795], [14.506948, 121.007734], [14.506942, 121.007567], [14.506984, 121.007478], [14.506999, 121.007377], [14.507027, 121.006987], [14.507068, 121.006346], [14.507111, 121.005954], [14.507107, 121.005909], [14.507031, 121.005593], [14.506981, 121.005598], [14.506732, 121.005117], [14.506552, 121.005106], [14.506557, 121.005036], [14.506564, 121.004974], [14.506846, 121.00499], [14.506846, 121.004978], [14.507005, 121.005062], [14.507103, 121.004866], [14.506955, 121.004786], [14.506972, 121.004759], [14.506827, 121.004677], [14.506772, 121.004639], [14.506724, 121.004596], [14.506731, 121.004587], [14.506746, 121.004567], [14.506764, 121.004544], [14.506698, 121.004477], [14.506644, 121.004415], [14.506578, 121.004334], [14.50652, 121.004239], [14.506469, 121.004136], [14.506439, 121.004047], [14.506414, 121.003962], [14.506388, 121.003812], [14.506366, 121.003817], [14.506342, 121.00382], [14.506331, 121.003821], [14.506319, 121.003747], [14.506307, 121.003674], [14.506305, 121.003584], [14.506312, 121.003493], [14.506257, 121.003491], [14.50626, 121.003424], [14.506102, 121.003421], [14.506067, 121.003424], [14.505998, 121.003358], [14.506255, 121.003217], [14.506211, 121.003132], [14.505947, 121.002659], [14.50563, 121.002825], [14.505579, 121.002854], [14.505503, 121.002709], [14.505293, 121.002321], [14.505199, 121.002161], [14.505248, 121.002081], [14.505281, 121.002021], [14.505499, 121.002149], [14.505592, 121.001986], [14.505754, 121.001723], [14.50608, 121.001172], [14.50585, 121.001055], [14.505397, 121.000791], [14.504665, 121.000343], [14.504604, 121.000303], [14.504321, 121.000119], [14.503884, 120.999848], [14.503693, 120.999715], [14.503539, 120.99994], [14.503246, 121.000472], [14.503118, 121.0014], [14.503015, 121.001388], [14.502961, 121.001381], [14.501879, 121.001248], [14.501886, 121.001191], [14.501459, 121.001139], [14.501503, 121.000754], [14.501484, 121.000749], [14.500271, 121.000529], [14.500273, 121.000219], [14.500261, 120.99997], [14.500167, 120.998683], [14.50072, 120.998705], [14.500754, 120.99785], [14.500609, 120.997842], [14.500524, 120.997772], [14.500478, 120.997734], [14.500517, 120.997616], [14.500375, 120.997508]]
+    };
+
+    const PARA_DISTRICT_COORDS = {
+        "baclaran": [14.5283, 120.9922],
+        "don galo": [14.5097, 120.9904],
+        "la huerta": [14.4984, 120.9950],
+        "santo nino": [14.5052, 121.0031],
+        "tambo": [14.5192, 120.9917],
+        "vitalez": [14.5140, 121.0102],
+        "bf homes": [14.4450, 121.0250],
+        "don bosco": [14.4856, 121.0422],
+        "marcelo green": [14.4795, 121.0366],
+        "merville": [14.5135, 121.0357],
+        "moonwalk": [14.4965, 121.0112],
+        "san antonio": [14.4750, 121.0180],
+        "san martin de porres": [14.4883, 121.0485],
+        "sun valley": [14.4947, 121.0375]
+    };
+
+    let liveIncidents = [];
+    const layerGroup = L.layerGroup();
+    
+    const droneIcon = L.divIcon({
+        className: 'drone-marker-container',
+        html: '<div class="drone-marker-pulse"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    });
+
+    const operatorIcon = L.divIcon({
+        className: 'operator-marker-container',
+        html: '<div class="operator-marker-pulse"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+    });
+
+    const userIcon = L.divIcon({
+        className: 'user-marker-container',
+        html: '<div class="user-marker-pulse"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+    });
+
+    let droneMarker = null;
+    let userMarker = null;
+
+    function showSystemMessage(title, text, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type}`;
+        
+        let iconClass = 'fa-info-circle text-blue';
+        if (type === 'error') iconClass = 'fa-triangle-exclamation text-red';
+        if (type === 'success') iconClass = 'fa-circle-check text-green';
+        
+        toast.innerHTML = `
+            <i class="fa-solid ${iconClass}" style="font-size: 1.1rem;"></i>
+            <div>
+                <div style="font-weight: 900; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;">${title}</div>
+                <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 1px;">${text}</div>
+            </div>
+        `;
+        container.appendChild(toast);
+        
+        setTimeout(() => toast.classList.add('show'), 50);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 400);
+        }, 4000);
+    }
+
+    async function initMap() {
+        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([14.4793, 121.0198], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            subdomains: 'abcd',
+            attribution: ''
+        }).addTo(map);
+        layerGroup.addTo(map);
+
+        Object.entries(AREA_DATA).forEach(([key, coords]) => {
+            let color = key === 'PQ' ? 'rgba(255,255,255,0.9)' 
+                      : key === 'BF' ? '#F97316' 
+                      : key === 'SA' ? '#3b82f6' 
+                      : '#DC2626';
+            let fillColor = key === 'PQ' ? 'rgba(255,255,255,0.04)'
+                          : key === 'BF' ? 'rgba(249,115,22,0.08)'
+                          : key === 'SA' ? 'rgba(59,130,246,0.08)'
+                          : 'rgba(220,38,38,0.18)';
+            let opts = {
+                color: color,
+                weight: key === 'PQ' ? 2 : 1.5,
+                fillColor: fillColor,
+                fillOpacity: 1,
+                dashArray: key === 'PQ' ? '6,4' : key === 'RESTRICTED' ? '' : '4,3',
+                lineJoin: 'round',
+                lineCap: 'round',
+                smoothFactor: 0.5
+            };
+            L.polygon(coords, opts).addTo(map);
+        });
+        
+        try {
+            const { error } = await supabaseClient.auth.signInAnonymously();
+            if (error) console.warn("Anon Auth bypassed:", error.message);
+        } catch (e) {
+            console.log("Auth step skipped.");
+        }
+
+        await fetchInitialIncidents();
+        subscribeToIncidents();
+        map.on('move', checkBoundaries);
+        checkBoundaries();
+
+        startTrackingUser();
+        updateRoleUIElements();
+    }
+
+    function setSessionRole(e, role) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        CURRENT_USER_ROLE = role;
+        localStorage.setItem('userRole', role);
+        
+        updateRoleUIElements();
+        updateLocationMarker();
+        
+        const friendlyName = role === 'operator' ? 'Field Operator' : 'Standard User';
+        showSystemMessage("AUTHORIZATION UPDATED", `Active clearance level adjusted to: ${friendlyName}.`, "success");
+    }
+
+    function updateRoleUIElements() {
+        const isOperator = CURRENT_USER_ROLE === 'operator';
+        document.getElementById('op-check-icon').style.display = isOperator ? 'inline-block' : 'none';
+        document.getElementById('usr-check-icon').style.display = isOperator ? 'none' : 'inline-block';
+        
+        const locBtn = document.getElementById('center-user-btn');
+        if (locBtn) {
+            locBtn.setAttribute('title', "Focus on Your Coordinates");
+        }
+    }
+
+    async function fetchInitialIncidents() {
+        try {
+            let result = await supabaseClient
+                .from('incident_logs')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(50);
+
+            if (result.error || !result.data || result.data.length === 0) {
+                result = await supabaseClient
+                    .from('incident_logs')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+            }
+
+            if (result.error) {
+                console.warn('[INCIDENTS] Fetch warning (RLS?):', result.error.message);
+            }
+
+            console.log('[INCIDENTS] Fetched rows:', result.data ? result.data.length : 0);
+            liveIncidents = result.data || [];
+        } catch (err) {
+            console.error('[INCIDENTS] fetchInitialIncidents error:', err);
+            liveIncidents = [];
+        }
+        renderIncidents();
+    }
+
+    function subscribeToIncidents() {
+        try {
+            supabaseClient.channel('public:incident_logs')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incident_logs' }, (payload) => {
+                    console.log("New incident received via realtime:", payload.new);
+                    
+                    if (payload.new) {
+                        liveIncidents.unshift(payload.new);
+                        renderIncidents();
+                        
+                        const idTag = payload.new.custom_id || 'NEW-INCIDENT';
+                        showSystemMessage("INTEL CAPTURED", `Sector alert: ${idTag}`, "error");
+                        
+                        const coords = estimateCoords(payload.new);
+                        map.flyTo(coords, 15, { animate: true, duration: 1.0 });
+                    }
+                }).subscribe();
+        } catch(e) {
+            console.error("Realtime subscription failed:", e);
+        }
+    }
+
+    function estimateCoords(inc) {
+        if (inc.lat !== undefined && inc.lat !== null && inc.lng !== undefined && inc.lng !== null) {
+            const parsedLat = parseFloat(inc.lat);
+            const parsedLng = parseFloat(inc.lng);
+            if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+                return [parsedLat, parsedLng];
+            }
+        }
+        
+        const content = (inc.location_tag || inc.title || "").toLowerCase();
+        
+        const exclusions = [
+            "manila times village", "dona manuela", "casimiro", "pulang lupa", 
+            "caa", "c5 extension", "zapote", "alabang-zapote", "las pinas", 
+            "muntinlupa", "bf international"
+        ];
+        
+        if (exclusions.some(area => content.includes(area))) {
+            return [14.4100, 121.0000];
+        }
+
+        for (const [key, coords] of Object.entries(PARA_DISTRICT_COORDS)) {
+            if (content.includes(key)) return coords;
+        }
+        
+        if (content.includes("bf homes")) return [14.4450, 121.0250];
+        if (content.includes("san antonio")) return [14.4750, 121.0180];
+        
+        return [14.4700, 121.0200];
+    }
+
+    function renderIncidents() {
+        const feed = document.getElementById('incident-feed');
+        feed.innerHTML = "";
+        layerGroup.clearLayers();
+        document.getElementById('p-count').innerText = liveIncidents.length;
+        const feedM = document.getElementById('incident-feed-m');
+        if (feedM) feedM.innerHTML = '';
+        const pcM = document.getElementById('p-count-m');
+        if (pcM) pcM.innerText = liveIncidents.length;
+
+        liveIncidents.forEach(inc => {
+            const coords = estimateCoords(inc);
+            
+            const marker = L.circleMarker(coords, { radius: 8, fillColor: "#F97316", color: "#fff", weight: 2, fillOpacity: 1 });
+            layerGroup.addLayer(marker);
+            marker.bindPopup(createPopup(inc, coords));
+            
+            const tag = inc.location_tag ? inc.location_tag.toUpperCase() : 'UNKNOWN SECTOR';
+            const makeItem = () => {
+                const item = document.createElement('div');
+                item.className = 'incident-item';
+                item.innerHTML = `
+                    <div style="font-weight:800; font-size:0.75rem; color:var(--orange);">${inc.custom_id || 'INC-LOG'}</div>
+                    <div style="font-size:0.65rem; color:var(--text-dim); text-transform: capitalize;">${inc.source || 'System'} • ${tag}</div>
+                    <div style="font-size:0.65rem; color:#fff; margin-top:4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${inc.title || 'No title provided'}</div>
+                `;
+                item.onclick = () => { map.setView(coords, 16); marker.openPopup(); };
+                return item;
+            };
+            feed.appendChild(makeItem());
+            if (feedM) feedM.appendChild(makeItem());
+        });
+    }
+
+    function createPopup(inc, coords) {
+        const sourceUrl = inc.url || "#";
+        
+        let mediaHtml = inc.video_url ? 
+            `<div class="pop-video-container has-link" onclick="window.open('${sourceUrl}', '_blank')"><span class="video-overlay-hint">LIVE FEED</span><video class="pop-video-feed" src="${inc.video_url}" autoplay muted loop></video></div>` :
+            `<div class="pop-video-container"><div class="no-footage">NO VISUAL DATA</div></div>`;
+
+        return `<div class="tactical-popup">
+                    <div class="pop-title">${inc.custom_id || 'INCIDENT TELEMETRY'}</div>
+                    <div class="pop-meta">${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}</div>
+                    <div class="pop-details">
+                        <strong>Source</strong>
+                        <p style="color: var(--orange); font-weight:700;">${inc.source || 'Automated Intel'}</p>
+                        <strong>Intel</strong>
+                        <p>${inc.title || 'Processing Intel...'}</p>
+                    </div>
+                    ${mediaHtml}
+                    <div class="popup-actions">
+                        <button class="mission-btn" onclick="startMission('${inc.id}')">Deploy Asset</button>
+                        <button class="source-btn" onclick="window.open('${sourceUrl}', '_blank')">Access Link</button>
+                    </div>
+                </div>`;
+    }
+
+    function isPointInPolygon(point, vs) {
+        let x = point.lat, y = point.lng;
+        let inside = false;
+        for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+            let xi = vs[i][0], yi = vs[i][1];
+            let xj = vs[j][0], yj = vs[j][1];
+            let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    function checkBoundaries() {
+        const center = map.getCenter();
+        const alertBox = document.getElementById('boundary-alert');
+        const alertText = document.getElementById('alert-text');
+        
+        if (isPointInPolygon(center, AREA_DATA.RESTRICTED)) {
+            alertBox.style.display = 'flex'; alertText.innerText = "INSIDE RESTRICTED AIRSPACE";
+        } else if (!isPointInPolygon(center, AREA_DATA.PQ)) {
+            alertBox.style.display = 'flex'; alertText.innerText = "OUTSIDE PARANAQUE AREA";
+        } else { 
+            alertBox.style.display = 'none'; 
+        }
+    }
+
+    function goToDrone() { 
+        if (DRONE_POS) {
+            map.flyTo(DRONE_POS, 16, { animate: true, duration: 1.5 });
+            showSystemMessage("TRACKING DRONE", "Redirecting to drone GPS.", "success");
+        } else {
+            showSystemMessage("OFFLINE", "Drone GPS is not currently available.", "error");
+        }
+    }
+
+    function updateLocationMarker() {
+        if (!USER_POS) return;
+        
+        const targetIcon    = userIcon;
+        const targetTooltip = "YOUR COORDINATES";
+        
+        if (userMarker) {
+            userMarker.setLatLng(USER_POS);
+            userMarker.setIcon(targetIcon);
+            userMarker.setTooltipContent(targetTooltip);
+        } else {
+            userMarker = L.marker(USER_POS, { icon: targetIcon }).addTo(map).bindTooltip(targetTooltip);
+        }
+    }
+
+    function startTrackingUser() {
+        if (!navigator.geolocation) {
+            showSystemMessage("GPS UNAVAILABLE", "Geolocation is not supported by this browser.", "error");
+            return;
+        }
+
+        userWatchId = navigator.geolocation.watchPosition(
+            pos => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                USER_POS = [lat, lng];
+                updateLocationMarker();
+            },
+            err => {
+                let msg = "Location access was denied.";
+                if (err.code === 2) msg = "Position unavailable. Check device GPS.";
+                if (err.code === 3) msg = "GPS timed out. Retrying...";
+                showSystemMessage("GPS ERROR", msg, "error");
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+        );
+    }
+
+    function recenterMap() {
+        if (USER_POS) {
+            map.flyTo(USER_POS, 17, { animate: true, duration: 1.5 });
+            showSystemMessage("LOCATING YOU", "Redirecting to your GPS.", "success");
+        } else if (!navigator.geolocation) {
+            showSystemMessage("OFFLINE", "Geolocation not supported.", "error");
+        } else {
+            showSystemMessage("ACQUIRING", "Getting your position, please wait...", "info");
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    USER_POS = [pos.coords.latitude, pos.coords.longitude];
+                    updateLocationMarker();
+                    map.flyTo(USER_POS, 17, { animate: true, duration: 1.5 });
+                    showSystemMessage("LOCKED ON", "Your position acquired.", "success");
+                },
+                err => {
+                    showSystemMessage("GPS DENIED", "Enable location access and try again.", "error");
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+    }
+
+    function goToParanaque() {
+        // Center of Parañaque City, Metro Manila
+        const PQ_CENTER = [14.4793, 121.0198];
+        map.flyTo(PQ_CENTER, 13, { animate: true, duration: 1.5 });
+        showSystemMessage("AREA LOCK", "Redirected to Parañaque City.", "success");
+    }
+
+    function startMission(id) { 
+        localStorage.setItem('activeMission', JSON.stringify(liveIncidents.find(i => i.id === id)));
+        window.location.href = 'mission.html';
+    }
+
+    let loraPackets = 0;
+
+    function tempColor(t, min, max) {
+        const r = max === min ? 0.5 : Math.max(0, Math.min(1, (t - min) / (max - min)));
+
+        const stops = [
+            [ 10,   0,  0],  
+            [ 80,  10,  0],  
+            [200,   0,  0],  
+            [230,  80,  0],  
+            [255, 220, 180]  
+        ];
+
+        const seg  = (stops.length - 1) * r;
+        const lo   = Math.floor(seg);
+        const hi   = Math.min(lo + 1, stops.length - 1);
+        const frac = seg - lo;
+
+        const red   = Math.round(stops[lo][0] + (stops[hi][0] - stops[lo][0]) * frac);
+        const green = Math.round(stops[lo][1] + (stops[hi][1] - stops[lo][1]) * frac);
+        const blue  = Math.round(stops[lo][2] + (stops[hi][2] - stops[lo][2]) * frac);
+
+        const bright = 0.299 * red + 0.587 * green + 0.114 * blue;
+        return { bg: `rgb(${red},${green},${blue})`, text: bright > 128 ? '#000' : '#fff' };
+    }
+
+    function updateLoraUI(row) {
+        const hasFix = row.has_gps;
+        
+        document.getElementById('d-lat').textContent = hasFix ? row.latitude.toFixed(6)  : '—';
+        document.getElementById('d-lng').textContent = hasFix ? row.longitude.toFixed(6) : '—';
+        document.getElementById('d-alt').textContent = hasFix ? row.altitude.toFixed(1) + ' m'    : '—';
+        document.getElementById('d-spd').textContent = hasFix ? row.speed.toFixed(1)    + ' km/h' : '—';
+        document.getElementById('d-sat').textContent = hasFix ? row.satellites : '—';
+
+        // mobile mirrors
+        const setM = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setM('d-lat-m', hasFix ? row.latitude.toFixed(6)  : '—');
+        setM('d-lng-m', hasFix ? row.longitude.toFixed(6) : '—');
+        setM('d-alt-m', hasFix ? row.altitude.toFixed(1) + ' m'    : '—');
+        setM('d-spd-m', hasFix ? row.speed.toFixed(1)    + ' km/h' : '—');
+        setM('d-sat-m', hasFix ? row.satellites : '—');
+        
+        const pulse  = document.getElementById('lora-pulse');
+        const status = document.getElementById('lora-status');
+        pulse.style.background  = hasFix ? '#4ade80' : '#F97316';
+        status.style.color      = hasFix ? '#4ade80' : '#F97316';
+        status.textContent      = hasFix ? 'SIGNAL SECURED' : 'SIGNAL LOST';
+
+        const pulseM  = document.getElementById('lora-pulse-m');
+        const statusM = document.getElementById('lora-status-m');
+        if (pulseM) pulseM.style.background = hasFix ? '#4ade80' : '#F97316';
+        if (statusM) { statusM.style.color = hasFix ? '#4ade80' : '#F97316'; statusM.textContent = hasFix ? 'SIGNAL SECURED' : 'SIGNAL LOST'; }
+        
+        if (hasFix && map) {
+            DRONE_POS = [row.latitude, row.longitude];
+            if (droneMarker) {
+                droneMarker.setLatLng(DRONE_POS);
+            } else {
+                droneMarker = L.marker(DRONE_POS, { icon: droneIcon }).addTo(map).bindTooltip('SR-01 ALPHA');
+            }
+        }
+        
+        const temps = row.temp_grid;
+        const min   = row.temp_min;
+        const max   = row.temp_max;
+        document.getElementById('d-tmin').textContent = min;
+        document.getElementById('d-tmax').textContent = max;
+        setM('d-tmin-m', min !== undefined ? min : '—');
+        setM('d-tmax-m', max !== undefined ? max : '—');
+
+        const grid = document.getElementById('d-thermal');
+        grid.innerHTML = '';
+        const gridM = document.getElementById('d-thermal-m');
+        if (gridM) gridM.innerHTML = '';
+
+        if (temps && Array.isArray(temps)) {
+            temps.forEach(t => {
+                const { bg, text } = tempColor(t, min, max);
+                const makeCell = () => {
+                    const cell = document.createElement('div');
+                    cell.style.cssText = `background:${bg}; color:${text}; aspect-ratio:1;
+                        border-radius:4px; display:flex; align-items:center;
+                        justify-content:center; font-size:10px; font-weight:900;
+                        border:1px solid rgba(0,0,0,0.4); letter-spacing:-0.5px;`;
+                    cell.textContent = Math.round(t);
+                    return cell;
+                };
+                grid.appendChild(makeCell());
+                if (gridM) gridM.appendChild(makeCell());
+            });
+        }
+        
+        loraPackets++;
+        document.getElementById('d-pkt').textContent = loraPackets;
+        setM('d-pkt-m', loraPackets);
+    }
+
+    async function initLora() {
+        try {
+            let result = await supabaseClient
+                .from('lora_readings')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (result.error || !result.data) {
+                result = await supabaseClient
+                    .from('lora_readings')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+            }
+
+            if (result.data) {
+                console.log('[LORA] Initial row fetched:', result.data);
+                updateLoraUI(result.data);
+            } else {
+                console.warn('[LORA] No data returned from lora_readings:', result.error);
+            }
+        } catch (err) {
+            console.error('[LORA] initLora fetch error:', err);
+        }
+
+        try {
+            supabaseClient.channel('lora_live')
+                .on('postgres_changes', {
+                    event : 'INSERT',
+                    schema: 'public',
+                    table : 'lora_readings'
+                }, payload => {
+                    console.log('[LORA] Realtime INSERT:', payload.new);
+                    updateLoraUI(payload.new);
+                })
+                .subscribe((status) => {
+                    console.log('[LORA] Realtime channel status:', status);
+                });
+        } catch(e) {
+            console.error('[LORA] Realtime subscribe error:', e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!requireLogin(['user','operator','admin'])) return;
+        initMap();
+        initLora();
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('time-val').textContent = now.toLocaleTimeString();
+            document.getElementById('date-label').textContent = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            const tm = document.getElementById('time-val-m');
+            const dm = document.getElementById('date-label-m');
+            if (tm) tm.textContent = now.toLocaleTimeString();
+            if (dm) dm.textContent = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        }, 1000);
+
+        const weatherVal = document.getElementById('weather-val');
+        const updateWeatherSim = () => {
+            const temps = [28.2, 29.5, 30.1, 27.6, 29.0];
+            const activeTemp = temps[Math.floor(Math.random() * temps.length)];
+            weatherVal.textContent = `${activeTemp}°C | CLEAR`;
+            const wm = document.getElementById('weather-val-m');
+            if (wm) wm.textContent = `${activeTemp}°C | CLEAR`;
+        };
+        updateWeatherSim();
+        setInterval(updateWeatherSim, 300000);
+
+        const menuBtn = document.getElementById('menuBtn');
+        const dropdown = document.getElementById('dropdownMenu');
+        menuBtn.onclick = (e) => { e.stopPropagation(); dropdown.classList.toggle('show'); };
+        document.addEventListener('click', () => dropdown.classList.remove('show'));
+    });
+</script>
+    <script>
+    if (typeof requireLogin === 'undefined') {
+        function requireLogin(roles) { return true; } // bypass auth in standalone mode
+    }
+    </script>
+    <script>
+    function openMobileNav() {
+        document.getElementById('mobileNavOverlay').classList.add('show');
+        document.getElementById('mobileNavPanel').classList.add('show');
+        document.getElementById('hamburgerBtn').classList.add('open');
+    }
+    function closeMobileNav() {
+        document.getElementById('mobileNavOverlay').classList.remove('show');
+        document.getElementById('mobileNavPanel').classList.remove('show');
+        if (document.getElementById('hamburgerBtn')) {
+            document.getElementById('hamburgerBtn').classList.remove('open');
+        }
+    }
+</script>
+</body>
+</html>
